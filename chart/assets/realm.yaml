@@ -1,0 +1,137 @@
+openapi: 3.0.3
+info:
+  title: Keycloak Admin API - Realm (KOG subset)
+  version: v1
+  description: Hand-curated OpenAPI 3.0 subset of the Keycloak Admin REST API for the Realm resource,
+    sufficient to manage it through the Krateo Operator Generator (KOG). Declares the http/bearer security
+    scheme that the upstream Keycloak OAS omits.
+servers:
+- url: '{{ .Values.keycloak.baseUrl }}'
+  description: Keycloak base URL (no trailing slash).
+security:
+- bearer: []
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: Keycloak admin access token (OAuth2 Bearer).
+  schemas:
+    RealmRepresentation:
+      type: object
+      required:
+      - realm
+      properties:
+        realm:
+          type: string
+          description: Realm name. Immutable natural key.
+        enabled:
+          type: boolean
+        displayName:
+          type: string
+        displayNameHtml:
+          type: string
+        sslRequired:
+          type: string
+          description: 'one of: all, external, none'
+        loginTheme:
+          type: string
+        loginWithEmailAllowed:
+          type: boolean
+        registrationAllowed:
+          type: boolean
+        resetPasswordAllowed:
+          type: boolean
+        rememberMe:
+          type: boolean
+        accessTokenLifespan:
+          type: integer
+        ssoSessionIdleTimeout:
+          type: integer
+          description: Shared-SSO idle timeout (seconds).
+        ssoSessionMaxLifespan:
+          type: integer
+          description: Shared-SSO max session lifespan (seconds).
+        internationalizationEnabled:
+          type: boolean
+        defaultLocale:
+          type: string
+        attributes:
+          type: object
+          additionalProperties:
+            type: string
+        id:
+          type: string
+          description: Server-generated identifier (read-only).
+          readOnly: true
+paths:
+  /admin/realms:
+    post:
+      operationId: createRealm
+      summary: Create Realm
+      tags:
+      - realm
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RealmRepresentation'
+      responses:
+        '201':
+          description: Created. Identifier returned via Location header.
+    get:
+      operationId: listRealm
+      summary: List/find Realm
+      tags:
+      - realm
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RealmRepresentation'
+  /admin/realms/{realm}:
+    parameters:
+    - name: realm
+      in: path
+      required: true
+      schema:
+        type: string
+    get:
+      operationId: getRealm
+      summary: Get Realm
+      tags:
+      - realm
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RealmRepresentation'
+    put:
+      operationId: updateRealm
+      summary: Update Realm
+      tags:
+      - realm
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RealmRepresentation'
+      responses:
+        '204':
+          description: Updated.
+    delete:
+      operationId: deleteRealm
+      summary: Delete Realm
+      tags:
+      - realm
+      responses:
+        '204':
+          description: Deleted.

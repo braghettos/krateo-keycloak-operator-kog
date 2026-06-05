@@ -1,0 +1,19 @@
+apiVersion: v2
+name: keycloak-config-kog
+description: >-
+  Krateo Operator Generator (KOG) packaging that exposes Keycloak Admin API
+  resources (realm, client, protocol-mapper, client-scope, group,
+  identity-provider) as native Kubernetes custom resources. oasgen-provider +
+  rest-dynamic-controller reconcile each CR against a running Keycloak's Admin
+  REST API. The bearer admin token is delivered/rotated into a Secret by the
+  External Secrets Operator.
+type: application
+version: 0.1.0
+appVersion: "26.0"
+home: https://www.keycloak.org/
+sources:
+  - https://www.keycloak.org/docs-api/latest/rest-api/openapi.yaml
+  - https://github.com/krateoplatformops/oasgen-provider
+  - https://github.com/krateoplatformops/rest-dynamic-controller
+maintainers:
+  - name: braghettos

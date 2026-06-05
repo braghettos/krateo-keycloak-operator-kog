@@ -1,0 +1,19 @@
+{{- /*
+One ConfigMap per enabled resource, each embedding its hand-curated OAS subset
+from assets/<key>.yaml. The asset is run through `tpl` so `{{ .Values.keycloak.baseUrl }}`
+in servers[0].url is resolved at install time.
+*/ -}}
+{{- range $key, $rd := .Values.restDefinitions }}
+{{- if $rd.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $.Release.Name }}-{{ $key }}
+  labels:
+    {{- include "keycloak-config-kog.labels" $ | nindent 4 }}
+data:
+  {{ $key }}.yaml: |
+{{ tpl ($.Files.Get (printf "assets/%s.yaml" $key)) $ | indent 4 }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,130 @@
+openapi: 3.0.3
+info:
+  title: Keycloak Admin API - Group (KOG subset)
+  version: v1
+  description: Hand-curated OpenAPI 3.0 subset of the Keycloak Admin REST API for the Group resource,
+    sufficient to manage it through the Krateo Operator Generator (KOG). Declares the http/bearer security
+    scheme that the upstream Keycloak OAS omits.
+servers:
+- url: '{{ .Values.keycloak.baseUrl }}'
+  description: Keycloak base URL (no trailing slash).
+security:
+- bearer: []
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: Keycloak admin access token (OAuth2 Bearer).
+  schemas:
+    GroupRepresentation:
+      type: object
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          description: Group name. Natural key (findby).
+        path:
+          type: string
+        attributes:
+          type: object
+          additionalProperties:
+            type: string
+        realmRoles:
+          type: array
+          items:
+            type: string
+        clientRoles:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          description: clientId -> [role] used for project/role mapping.
+        id:
+          type: string
+          description: Server-generated identifier (read-only).
+          readOnly: true
+paths:
+  /admin/realms/{realm}/groups:
+    parameters:
+    - name: realm
+      in: path
+      required: true
+      schema:
+        type: string
+    post:
+      operationId: createGroup
+      summary: Create Group
+      tags:
+      - group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupRepresentation'
+      responses:
+        '201':
+          description: Created. Identifier returned via Location header.
+    get:
+      operationId: listGroup
+      summary: List/find Group
+      tags:
+      - group
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupRepresentation'
+  /admin/realms/{realm}/groups/{id}:
+    parameters:
+    - name: realm
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    get:
+      operationId: getGroup
+      summary: Get Group
+      tags:
+      - group
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupRepresentation'
+    put:
+      operationId: updateGroup
+      summary: Update Group
+      tags:
+      - group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupRepresentation'
+      responses:
+        '204':
+          description: Updated.
+    delete:
+      operationId: deleteGroup
+      summary: Delete Group
+      tags:
+      - group
+      responses:
+        '204':
+          description: Deleted.

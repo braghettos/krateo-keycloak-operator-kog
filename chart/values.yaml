@@ -1,0 +1,68 @@
+# ---------------------------------------------------------------------------
+# Keycloak target
+# ---------------------------------------------------------------------------
+keycloak:
+  # Base URL of the Keycloak server the generated controllers call. No trailing
+  # slash. Injected into every OAS asset's `servers[0].url` via Helm `tpl`.
+  # In-cluster default points at the Service created by the operator blueprint.
+  baseUrl: "http://keycloak-service.keycloak-system.svc.cluster.local:8080"
+
+# ---------------------------------------------------------------------------
+# Admin bearer token (delivered + rotated by External Secrets Operator)
+# ---------------------------------------------------------------------------
+# rest-dynamic-controller reads a bearer token from a Secret referenced by each
+# CR's `authenticationRefs`. Keycloak admin access tokens are short-lived, so we
+# do NOT store a static token: ESO mints a fresh one from Keycloak's token
+# endpoint (client_credentials, service-account client with realm-management
+# roles) on a refreshInterval shorter than the token TTL, and writes it here.
+auth:
+  secretName: keycloak-admin-token
+  secretKey: token
+  externalSecret:
+    enabled: true
+    refreshInterval: "60s"          # < access-token lifespan
+    # Name of an ESO Generator (preferred) OR SecretStore that yields the token.
+    # See templates/externalsecret.yaml for the two supported wiring modes.
+    generatorRef:
+      apiVersion: generators.external-secrets.io/v1alpha1
+      kind: Webhook
+      name: keycloak-admin-token-webhook
+    # client_credentials inputs the Generator/Webhook uses to mint the token.
+    tokenEndpoint: "http://keycloak-service.keycloak-system.svc.cluster.local:8080/realms/master/protocol/openid-connect/token"
+    clientId: "krateo-kog"
+    # The client secret itself comes from a pre-existing Secret (not in values).
+    clientSecretRef:
+      name: keycloak-kog-client
+      key: clientSecret
+
+# ---------------------------------------------------------------------------
+# Which RestDefinitions to emit. Each maps 1:1 to an assets/<key>.yaml OAS.
+# `kind` is intentionally prefixed `Keycloak` to avoid crdgen collisions with
+# same-named lowercase body properties (e.g. kind Realm vs property `realm`),
+# the same failure mode the Nova KOG hit with kind `Server` vs property `server`.
+# ---------------------------------------------------------------------------
+restDefinitions:
+  realm:
+    enabled: true
+    kind: KeycloakRealm
+  client:
+    enabled: true
+    kind: KeycloakClient
+  protocolmapper:
+    enabled: true
+    kind: KeycloakProtocolMapper
+  clientscope:
+    enabled: true
+    kind: KeycloakClientScope
+  group:
+    enabled: true
+    kind: KeycloakGroup
+  identityprovider:
+    enabled: true
+    kind: KeycloakIdentityProvider
+
+# Kubernetes API group the generated CRDs register under. GVK = <group>/v1alpha1.
+resourceGroup: keycloak.ogen.krateo.io
+
+# verbose logging on the generated connectors (annotation krateo.io/connector-verbose)
+verbose: false

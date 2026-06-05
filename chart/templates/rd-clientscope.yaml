@@ -1,0 +1,44 @@
+{{- if .Values.restDefinitions.clientscope.enabled }}
+apiVersion: ogen.krateo.io/v1alpha1
+kind: RestDefinition
+metadata:
+  name: {{ .Release.Name }}-clientscope
+  labels:
+    {{- include "keycloak-config-kog.labels" . | nindent 4 }}
+  {{- if .Values.verbose }}
+  annotations:
+    krateo.io/connector-verbose: "true"
+  {{- end }}
+spec:
+  oasPath: configmap://{{ .Release.Namespace }}/{{ .Release.Name }}-clientscope/clientscope.yaml
+  resourceGroup: {{ .Values.resourceGroup }}
+  resource:
+    kind: {{ .Values.restDefinitions.clientscope.kind }}
+    # `name` natural key; UUID {id} resolved via findby. Parent scope: {realm}.
+    identifiers:
+      - name
+    additionalStatusFields:
+      - id
+    verbsDescription:
+      - action: findby
+        method: GET
+        path: /admin/realms/{realm}/client-scopes
+      - action: create
+        method: POST
+        path: /admin/realms/{realm}/client-scopes
+      - action: get
+        method: GET
+        path: /admin/realms/{realm}/client-scopes/{id}
+      - action: update
+        method: PUT
+        path: /admin/realms/{realm}/client-scopes/{id}
+      - action: delete
+        method: DELETE
+        path: /admin/realms/{realm}/client-scopes/{id}
+    configurationFields:
+      - fromOpenAPI:
+          name: realm
+          in: path
+        fromRestDefinition:
+          actions: ["*"]
+{{- end }}

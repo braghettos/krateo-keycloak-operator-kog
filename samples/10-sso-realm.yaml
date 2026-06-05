@@ -1,0 +1,111 @@
+# End-to-end SSO setup expressed as Keycloak-config-KOG custom resources.
+# Provisions everything the Krateo + OpenStack Horizon shared-session SSO needs:
+#   - a `krateo` realm
+#   - a `groups` Group Membership protocol mapper (consumed by BOTH Krateo authn
+#     and the Keystone OIDC mapping)
+#   - the `keystone` OIDC client (Horizon/Keystone federation RP)
+#   - the `krateo-authn` OIDC client (Krateo portal login)
+#   - one example OpenStack project group whose role drives Keystone authz
+#
+# All resources reference the `keycloak-admin` Configuration (see 00-configurations.yaml).
+# Replace <KRATEO_HOST> / <KEYSTONE_HOST> with your real ingress hostnames.
+---
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakRealm
+metadata:
+  name: krateo
+  namespace: krateo-system
+spec:
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
+  realm: krateo
+  enabled: true
+  displayName: "Krateo PlatformOps"
+  loginWithEmailAllowed: true
+  sslRequired: external
+  # Shared-SSO session window (both apps ride this single session).
+  ssoSessionIdleTimeout: 1800
+  ssoSessionMaxLifespan: 36000
+---
+# Keystone (Horizon WebSSO) federation client — confidential OIDC RP.
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakClient
+metadata:
+  name: keystone
+  namespace: krateo-system
+spec:
+  configurationRef: { name: keycloak-admin, namespace: krateo-system }
+  realm: krateo
+  clientId: keystone
+  name: "OpenStack Keystone (Horizon WebSSO)"
+  enabled: true
+  protocol: openid-connect
+  publicClient: false
+  standardFlowEnabled: true
+  clientAuthenticatorType: client-secret
+  redirectUris:
+    - "https://<KEYSTONE_HOST>/v3/auth/OS-FEDERATION/identity_providers/keycloak/protocols/openid/websso"
+    - "https://<KEYSTONE_HOST>/redirect_uri"
+  webOrigins:
+    - "https://<KEYSTONE_HOST>"
+---
+# Krateo portal login client — confidential OIDC RP for the authn service.
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakClient
+metadata:
+  name: krateo-authn
+  namespace: krateo-system
+spec:
+  configurationRef: { name: keycloak-admin, namespace: krateo-system }
+  realm: krateo
+  clientId: krateo-authn
+  name: "Krateo AuthN"
+  enabled: true
+  protocol: openid-connect
+  publicClient: false
+  standardFlowEnabled: true
+  clientAuthenticatorType: client-secret
+  redirectUris:
+    - "https://<KRATEO_HOST>/auth/oidc"
+  webOrigins:
+    - "https://<KRATEO_HOST>"
+---
+# `groups` Group Membership mapper on the keystone client. Token claim `groups`,
+# full path OFF — required identically by Krateo authn (additionalScopes: groups)
+# and by the Keystone OIDC mapping rules.
+# NOTE: spec.clientUuid must be the server-generated UUID of the `keystone`
+# client (read it from the KeycloakClient `keystone` status.id once reconciled).
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakProtocolMapper
+metadata:
+  name: keystone-groups
+  namespace: krateo-system
+spec:
+  configurationRef: { name: keycloak-admin, namespace: krateo-system }
+  realm: krateo
+  clientUuid: "<KEYSTONE_CLIENT_UUID>"
+  name: groups
+  protocol: openid-connect
+  protocolMapper: oidc-group-membership-mapper
+  config:
+    "claim.name": "groups"
+    "full.path": "false"
+    "id.token.claim": "true"
+    "access.token.claim": "true"
+    "userinfo.token.claim": "true"
+---
+# Example OpenStack project group. Membership flows to Keystone via the `groups`
+# claim; the Keystone mapping turns `os-project-demo` into a project/role grant.
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakGroup
+metadata:
+  name: os-project-demo
+  namespace: krateo-system
+spec:
+  configurationRef: { name: keycloak-admin, namespace: krateo-system }
+  realm: krateo
+  name: os-project-demo
+  attributes:
+    openstack-project: ["demo"]
+    openstack-role: ["member"]

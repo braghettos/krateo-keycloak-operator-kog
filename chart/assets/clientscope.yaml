@@ -1,0 +1,121 @@
+openapi: 3.0.3
+info:
+  title: Keycloak Admin API - Client Scope (KOG subset)
+  version: v1
+  description: Hand-curated OpenAPI 3.0 subset of the Keycloak Admin REST API for the Client Scope resource,
+    sufficient to manage it through the Krateo Operator Generator (KOG). Declares the http/bearer security
+    scheme that the upstream Keycloak OAS omits.
+servers:
+- url: '{{ .Values.keycloak.baseUrl }}'
+  description: Keycloak base URL (no trailing slash).
+security:
+- bearer: []
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: Keycloak admin access token (OAuth2 Bearer).
+  schemas:
+    ClientScopeRepresentation:
+      type: object
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          description: Client-scope name. Natural key (findby).
+        description:
+          type: string
+        protocol:
+          type: string
+        attributes:
+          type: object
+          additionalProperties:
+            type: string
+        id:
+          type: string
+          description: Server-generated identifier (read-only).
+          readOnly: true
+paths:
+  /admin/realms/{realm}/client-scopes:
+    parameters:
+    - name: realm
+      in: path
+      required: true
+      schema:
+        type: string
+    post:
+      operationId: createClientscope
+      summary: Create Client Scope
+      tags:
+      - clientscope
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientScopeRepresentation'
+      responses:
+        '201':
+          description: Created. Identifier returned via Location header.
+    get:
+      operationId: listClientscope
+      summary: List/find Client Scope
+      tags:
+      - clientscope
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ClientScopeRepresentation'
+  /admin/realms/{realm}/client-scopes/{id}:
+    parameters:
+    - name: realm
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    get:
+      operationId: getClientscope
+      summary: Get Client Scope
+      tags:
+      - clientscope
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientScopeRepresentation'
+    put:
+      operationId: updateClientscope
+      summary: Update Client Scope
+      tags:
+      - clientscope
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientScopeRepresentation'
+      responses:
+        '204':
+          description: Updated.
+    delete:
+      operationId: deleteClientscope
+      summary: Delete Client Scope
+      tags:
+      - clientscope
+      responses:
+        '204':
+          description: Deleted.

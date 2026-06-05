@@ -1,0 +1,134 @@
+openapi: 3.0.3
+info:
+  title: Keycloak Admin API - Identity Provider (KOG subset)
+  version: v1
+  description: Hand-curated OpenAPI 3.0 subset of the Keycloak Admin REST API for the Identity Provider
+    resource, sufficient to manage it through the Krateo Operator Generator (KOG). Declares the http/bearer
+    security scheme that the upstream Keycloak OAS omits.
+servers:
+- url: '{{ .Values.keycloak.baseUrl }}'
+  description: Keycloak base URL (no trailing slash).
+security:
+- bearer: []
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: Keycloak admin access token (OAuth2 Bearer).
+  schemas:
+    IdentityProviderRepresentation:
+      type: object
+      required:
+      - alias
+      properties:
+        alias:
+          type: string
+          description: IdP alias. Immutable natural key.
+        displayName:
+          type: string
+        providerId:
+          type: string
+          description: e.g. oidc, keycloak-oidc, saml
+        enabled:
+          type: boolean
+        trustEmail:
+          type: boolean
+        storeToken:
+          type: boolean
+        linkOnly:
+          type: boolean
+        hideOnLogin:
+          type: boolean
+        firstBrokerLoginFlowAlias:
+          type: string
+        config:
+          type: object
+          additionalProperties:
+            type: string
+        internalId:
+          type: string
+          description: Server-generated identifier (read-only).
+          readOnly: true
+paths:
+  /admin/realms/{realm}/identity-provider/instances:
+    parameters:
+    - name: realm
+      in: path
+      required: true
+      schema:
+        type: string
+    post:
+      operationId: createIdentityprovider
+      summary: Create Identity Provider
+      tags:
+      - identityprovider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IdentityProviderRepresentation'
+      responses:
+        '201':
+          description: Created. Identifier returned via Location header.
+    get:
+      operationId: listIdentityprovider
+      summary: List/find Identity Provider
+      tags:
+      - identityprovider
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IdentityProviderRepresentation'
+  /admin/realms/{realm}/identity-provider/instances/{alias}:
+    parameters:
+    - name: realm
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: alias
+      in: path
+      required: true
+      schema:
+        type: string
+    get:
+      operationId: getIdentityprovider
+      summary: Get Identity Provider
+      tags:
+      - identityprovider
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdentityProviderRepresentation'
+    put:
+      operationId: updateIdentityprovider
+      summary: Update Identity Provider
+      tags:
+      - identityprovider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IdentityProviderRepresentation'
+      responses:
+        '204':
+          description: Updated.
+    delete:
+      operationId: deleteIdentityprovider
+      summary: Delete Identity Provider
+      tags:
+      - identityprovider
+      responses:
+        '204':
+          description: Deleted.

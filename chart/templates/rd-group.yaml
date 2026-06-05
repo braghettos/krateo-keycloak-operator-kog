@@ -1,0 +1,46 @@
+{{- if .Values.restDefinitions.group.enabled }}
+apiVersion: ogen.krateo.io/v1alpha1
+kind: RestDefinition
+metadata:
+  name: {{ .Release.Name }}-group
+  labels:
+    {{- include "keycloak-config-kog.labels" . | nindent 4 }}
+  {{- if .Values.verbose }}
+  annotations:
+    krateo.io/connector-verbose: "true"
+  {{- end }}
+spec:
+  oasPath: configmap://{{ .Release.Namespace }}/{{ .Release.Name }}-group/group.yaml
+  resourceGroup: {{ .Values.resourceGroup }}
+  resource:
+    kind: {{ .Values.restDefinitions.group.kind }}
+    # Top-level realm group. `name` natural key; UUID {id} resolved via findby.
+    # `realmRoles`/`clientRoles` carry the role assignments that the Keystone
+    # mapping later turns into OpenStack project/role grants.
+    identifiers:
+      - name
+    additionalStatusFields:
+      - id
+    verbsDescription:
+      - action: findby
+        method: GET
+        path: /admin/realms/{realm}/groups
+      - action: create
+        method: POST
+        path: /admin/realms/{realm}/groups
+      - action: get
+        method: GET
+        path: /admin/realms/{realm}/groups/{id}
+      - action: update
+        method: PUT
+        path: /admin/realms/{realm}/groups/{id}
+      - action: delete
+        method: DELETE
+        path: /admin/realms/{realm}/groups/{id}
+    configurationFields:
+      - fromOpenAPI:
+          name: realm
+          in: path
+        fromRestDefinition:
+          actions: ["*"]
+{{- end }}

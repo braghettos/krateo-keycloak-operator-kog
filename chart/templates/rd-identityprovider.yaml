@@ -1,0 +1,55 @@
+{{- if .Values.restDefinitions.identityprovider.enabled }}
+apiVersion: ogen.krateo.io/v1alpha1
+kind: RestDefinition
+metadata:
+  name: {{ .Release.Name }}-identityprovider
+  labels:
+    {{- include "keycloak-config-kog.labels" . | nindent 4 }}
+  {{- if .Values.verbose }}
+  annotations:
+    krateo.io/connector-verbose: "true"
+  {{- end }}
+spec:
+  oasPath: configmap://{{ .Release.Namespace }}/{{ .Release.Name }}-identityprovider/identityprovider.yaml
+  resourceGroup: {{ .Values.resourceGroup }}
+  resource:
+    kind: {{ .Values.restDefinitions.identityprovider.kind }}
+    # `alias` is a user-supplied immutable natural key addressable directly
+    # (no server-generated UUID in the path); `internalId` is read-only.
+    # Parent scope: {realm}.
+    identifiers:
+      - alias
+    additionalStatusFields:
+      - internalId
+    verbsDescription:
+      - action: create
+        method: POST
+        path: /admin/realms/{realm}/identity-provider/instances
+      - action: findby
+        method: GET
+        path: /admin/realms/{realm}/identity-provider/instances
+      - action: get
+        method: GET
+        path: /admin/realms/{realm}/identity-provider/instances/{alias}
+        requestFieldMapping:
+          - inPath: alias
+            inCustomResource: spec.alias
+      - action: update
+        method: PUT
+        path: /admin/realms/{realm}/identity-provider/instances/{alias}
+        requestFieldMapping:
+          - inPath: alias
+            inCustomResource: spec.alias
+      - action: delete
+        method: DELETE
+        path: /admin/realms/{realm}/identity-provider/instances/{alias}
+        requestFieldMapping:
+          - inPath: alias
+            inCustomResource: spec.alias
+    configurationFields:
+      - fromOpenAPI:
+          name: realm
+          in: path
+        fromRestDefinition:
+          actions: ["*"]
+{{- end }}

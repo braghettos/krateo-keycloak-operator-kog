@@ -1,0 +1,48 @@
+{{- if .Values.restDefinitions.client.enabled }}
+apiVersion: ogen.krateo.io/v1alpha1
+kind: RestDefinition
+metadata:
+  name: {{ .Release.Name }}-client
+  labels:
+    {{- include "keycloak-config-kog.labels" . | nindent 4 }}
+  {{- if .Values.verbose }}
+  annotations:
+    krateo.io/connector-verbose: "true"
+  {{- end }}
+spec:
+  oasPath: configmap://{{ .Release.Namespace }}/{{ .Release.Name }}-client/client.yaml
+  resourceGroup: {{ .Values.resourceGroup }}
+  resource:
+    kind: {{ .Values.restDefinitions.client.kind }}
+    # `clientId` is the user-supplied natural key; Keycloak addresses the
+    # resource by a server-generated UUID. `findby` lists the collection and
+    # matches clientId to resolve {id} (written to status) for get/update/delete.
+    identifiers:
+      - clientId
+    additionalStatusFields:
+      - id
+    verbsDescription:
+      - action: findby
+        method: GET
+        path: /admin/realms/{realm}/clients
+      - action: create
+        method: POST
+        path: /admin/realms/{realm}/clients
+      - action: get
+        method: GET
+        path: /admin/realms/{realm}/clients/{id}
+      - action: update
+        method: PUT
+        path: /admin/realms/{realm}/clients/{id}
+      - action: delete
+        method: DELETE
+        path: /admin/realms/{realm}/clients/{id}
+    # {realm} is a parent scope (not the resource id): expose it as a spec field
+    # applied to every action.
+    configurationFields:
+      - fromOpenAPI:
+          name: realm
+          in: path
+        fromRestDefinition:
+          actions: ["*"]
+{{- end }}

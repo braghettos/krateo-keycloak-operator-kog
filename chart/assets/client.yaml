@@ -1,0 +1,172 @@
+openapi: 3.0.3
+info:
+  title: Keycloak Admin API - Client (KOG subset)
+  version: v1
+  description: Hand-curated OpenAPI 3.0 subset of the Keycloak Admin REST API for the Client resource,
+    sufficient to manage it through the Krateo Operator Generator (KOG). Declares the http/bearer security
+    scheme that the upstream Keycloak OAS omits.
+servers:
+- url: '{{ .Values.keycloak.baseUrl }}'
+  description: Keycloak base URL (no trailing slash).
+security:
+- bearer: []
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: Keycloak admin access token (OAuth2 Bearer).
+  schemas:
+    ClientRepresentation:
+      type: object
+      required:
+      - clientId
+      properties:
+        clientId:
+          type: string
+          description: Public client identifier. Natural key (findby).
+        name:
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+        protocol:
+          type: string
+          description: openid-connect or saml
+        rootUrl:
+          type: string
+        baseUrl:
+          type: string
+        adminUrl:
+          type: string
+        redirectUris:
+          type: array
+          items:
+            type: string
+        webOrigins:
+          type: array
+          items:
+            type: string
+        publicClient:
+          type: boolean
+        bearerOnly:
+          type: boolean
+        standardFlowEnabled:
+          type: boolean
+          description: Authorization Code flow.
+        implicitFlowEnabled:
+          type: boolean
+        directAccessGrantsEnabled:
+          type: boolean
+        serviceAccountsEnabled:
+          type: boolean
+          description: Needed for client_credentials (admin token client).
+        clientAuthenticatorType:
+          type: string
+          description: e.g. client-secret
+        secret:
+          type: string
+          description: Client secret (confidential clients).
+        frontchannelLogout:
+          type: boolean
+        fullScopeAllowed:
+          type: boolean
+        defaultClientScopes:
+          type: array
+          items:
+            type: string
+        optionalClientScopes:
+          type: array
+          items:
+            type: string
+        attributes:
+          type: object
+          additionalProperties:
+            type: string
+        id:
+          type: string
+          description: Server-generated identifier (read-only).
+          readOnly: true
+paths:
+  /admin/realms/{realm}/clients:
+    parameters:
+    - name: realm
+      in: path
+      required: true
+      schema:
+        type: string
+    post:
+      operationId: createClient
+      summary: Create Client
+      tags:
+      - client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientRepresentation'
+      responses:
+        '201':
+          description: Created. Identifier returned via Location header.
+    get:
+      operationId: listClient
+      summary: List/find Client
+      tags:
+      - client
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ClientRepresentation'
+  /admin/realms/{realm}/clients/{id}:
+    parameters:
+    - name: realm
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    get:
+      operationId: getClient
+      summary: Get Client
+      tags:
+      - client
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientRepresentation'
+    put:
+      operationId: updateClient
+      summary: Update Client
+      tags:
+      - client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientRepresentation'
+      responses:
+        '204':
+          description: Updated.
+    delete:
+      operationId: deleteClient
+      summary: Delete Client
+      tags:
+      - client
+      responses:
+        '204':
+          description: Deleted.

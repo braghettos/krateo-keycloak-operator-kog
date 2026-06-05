@@ -1,0 +1,69 @@
+# Per-Kind Configuration CRs. oasgen-provider generates a `<Kind>Configuration`
+# CRD for every RestDefinition whose OAS declares an http/bearer scheme; it
+# carries the authentication block. All six point at the SAME ESO-managed
+# Secret (keycloak-admin-token) created by templates/externalsecret.yaml.
+#
+# Namespace assumed: krateo-system (adjust to your install namespace).
+---
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakRealmConfiguration
+metadata:
+  name: keycloak-admin
+  namespace: krateo-system
+spec:
+  authentication:
+    bearer:
+      tokenRef:
+        name: keycloak-admin-token
+        namespace: krateo-system
+        key: token
+---
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakClientConfiguration
+metadata:
+  name: keycloak-admin
+  namespace: krateo-system
+spec:
+  authentication:
+    bearer:
+      tokenRef: { name: keycloak-admin-token, namespace: krateo-system, key: token }
+---
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakProtocolMapperConfiguration
+metadata:
+  name: keycloak-admin
+  namespace: krateo-system
+spec:
+  authentication:
+    bearer:
+      tokenRef: { name: keycloak-admin-token, namespace: krateo-system, key: token }
+---
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakClientScopeConfiguration
+metadata:
+  name: keycloak-admin
+  namespace: krateo-system
+spec:
+  authentication:
+    bearer:
+      tokenRef: { name: keycloak-admin-token, namespace: krateo-system, key: token }
+---
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakGroupConfiguration
+metadata:
+  name: keycloak-admin
+  namespace: krateo-system
+spec:
+  authentication:
+    bearer:
+      tokenRef: { name: keycloak-admin-token, namespace: krateo-system, key: token }
+---
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakIdentityProviderConfiguration
+metadata:
+  name: keycloak-admin
+  namespace: krateo-system
+spec:
+  authentication:
+    bearer:
+      tokenRef: { name: keycloak-admin-token, namespace: krateo-system, key: token }

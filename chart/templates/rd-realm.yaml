@@ -1,0 +1,48 @@
+{{- if .Values.restDefinitions.realm.enabled }}
+apiVersion: ogen.krateo.io/v1alpha1
+kind: RestDefinition
+metadata:
+  name: {{ .Release.Name }}-realm
+  labels:
+    {{- include "keycloak-config-kog.labels" . | nindent 4 }}
+  {{- if .Values.verbose }}
+  annotations:
+    krateo.io/connector-verbose: "true"
+  {{- end }}
+spec:
+  oasPath: configmap://{{ .Release.Namespace }}/{{ .Release.Name }}-realm/realm.yaml
+  resourceGroup: {{ .Values.resourceGroup }}
+  resource:
+    kind: {{ .Values.restDefinitions.realm.kind }}
+    # The realm name is a user-supplied natural key (NOT server-generated),
+    # so the resource is addressable directly by {realm}; `id` is read-only.
+    identifiers:
+      - realm
+    additionalStatusFields:
+      - id
+    verbsDescription:
+      - action: create
+        method: POST
+        path: /admin/realms
+      - action: findby
+        method: GET
+        path: /admin/realms
+      - action: get
+        method: GET
+        path: /admin/realms/{realm}
+        requestFieldMapping:
+          - inPath: realm
+            inCustomResource: spec.realm
+      - action: update
+        method: PUT
+        path: /admin/realms/{realm}
+        requestFieldMapping:
+          - inPath: realm
+            inCustomResource: spec.realm
+      - action: delete
+        method: DELETE
+        path: /admin/realms/{realm}
+        requestFieldMapping:
+          - inPath: realm
+            inCustomResource: spec.realm
+{{- end }}

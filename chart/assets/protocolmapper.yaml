@@ -1,0 +1,135 @@
+openapi: 3.0.3
+info:
+  title: Keycloak Admin API - Protocol Mapper (KOG subset)
+  version: v1
+  description: Hand-curated OpenAPI 3.0 subset of the Keycloak Admin REST API for the Protocol Mapper
+    resource, sufficient to manage it through the Krateo Operator Generator (KOG). Declares the http/bearer
+    security scheme that the upstream Keycloak OAS omits.
+servers:
+- url: '{{ .Values.keycloak.baseUrl }}'
+  description: Keycloak base URL (no trailing slash).
+security:
+- bearer: []
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: Keycloak admin access token (OAuth2 Bearer).
+  schemas:
+    ProtocolMapperRepresentation:
+      type: object
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          description: Mapper name. Natural key (findby).
+        protocol:
+          type: string
+          description: openid-connect or saml
+        protocolMapper:
+          type: string
+          description: e.g. oidc-group-membership-mapper, oidc-usermodel-attribute-mapper
+        consentRequired:
+          type: boolean
+        config:
+          type: object
+          additionalProperties:
+            type: string
+        id:
+          type: string
+          description: Server-generated identifier (read-only).
+          readOnly: true
+paths:
+  /admin/realms/{realm}/clients/{client-uuid}/protocol-mappers/models:
+    parameters:
+    - name: realm
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: client-uuid
+      in: path
+      required: true
+      schema:
+        type: string
+    post:
+      operationId: createProtocolmapper
+      summary: Create Protocol Mapper
+      tags:
+      - protocolmapper
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProtocolMapperRepresentation'
+      responses:
+        '201':
+          description: Created. Identifier returned via Location header.
+    get:
+      operationId: listProtocolmapper
+      summary: List/find Protocol Mapper
+      tags:
+      - protocolmapper
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProtocolMapperRepresentation'
+  /admin/realms/{realm}/clients/{client-uuid}/protocol-mappers/models/{id}:
+    parameters:
+    - name: realm
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: client-uuid
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    get:
+      operationId: getProtocolmapper
+      summary: Get Protocol Mapper
+      tags:
+      - protocolmapper
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProtocolMapperRepresentation'
+    put:
+      operationId: updateProtocolmapper
+      summary: Update Protocol Mapper
+      tags:
+      - protocolmapper
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProtocolMapperRepresentation'
+      responses:
+        '204':
+          description: Updated.
+    delete:
+      operationId: deleteProtocolmapper
+      summary: Delete Protocol Mapper
+      tags:
+      - protocolmapper
+      responses:
+        '204':
+          description: Deleted.

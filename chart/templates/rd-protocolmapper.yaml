@@ -1,0 +1,50 @@
+{{- if .Values.restDefinitions.protocolmapper.enabled }}
+apiVersion: ogen.krateo.io/v1alpha1
+kind: RestDefinition
+metadata:
+  name: {{ .Release.Name }}-protocolmapper
+  labels:
+    {{- include "keycloak-config-kog.labels" . | nindent 4 }}
+  {{- if .Values.verbose }}
+  annotations:
+    krateo.io/connector-verbose: "true"
+  {{- end }}
+spec:
+  oasPath: configmap://{{ .Release.Namespace }}/{{ .Release.Name }}-protocolmapper/protocolmapper.yaml
+  resourceGroup: {{ .Values.resourceGroup }}
+  resource:
+    kind: {{ .Values.restDefinitions.protocolmapper.kind }}
+    # Client-scoped protocol mapper. `name` is the natural key; the UUID {id} is
+    # resolved via findby. Two parent scopes: {realm} and the owning client UUID.
+    identifiers:
+      - name
+    additionalStatusFields:
+      - id
+    verbsDescription:
+      - action: findby
+        method: GET
+        path: /admin/realms/{realm}/clients/{client-uuid}/protocol-mappers/models
+      - action: create
+        method: POST
+        path: /admin/realms/{realm}/clients/{client-uuid}/protocol-mappers/models
+      - action: get
+        method: GET
+        path: /admin/realms/{realm}/clients/{client-uuid}/protocol-mappers/models/{id}
+      - action: update
+        method: PUT
+        path: /admin/realms/{realm}/clients/{client-uuid}/protocol-mappers/models/{id}
+      - action: delete
+        method: DELETE
+        path: /admin/realms/{realm}/clients/{client-uuid}/protocol-mappers/models/{id}
+    configurationFields:
+      - fromOpenAPI:
+          name: realm
+          in: path
+        fromRestDefinition:
+          actions: ["*"]
+      - fromOpenAPI:
+          name: client-uuid
+          in: path
+        fromRestDefinition:
+          actions: ["*"]
+{{- end }}
