@@ -21,6 +21,8 @@ spec:
       - name
     additionalStatusFields:
       - id
+    excludedSpecFields:
+      - id
     verbsDescription:
       - action: findby
         method: GET
@@ -31,16 +33,19 @@ spec:
       - action: get
         method: GET
         path: /admin/realms/{realm}/groups/{id}
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
       - action: update
         method: PUT
         path: /admin/realms/{realm}/groups/{id}
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
       - action: delete
         method: DELETE
         path: /admin/realms/{realm}/groups/{id}
-    configurationFields:
-      - fromOpenAPI:
-          name: realm
-          in: path
-        fromRestDefinition:
-          actions: ["*"]
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
 {{- end }}

@@ -16,35 +16,37 @@ spec:
     kind: {{ .Values.restDefinitions.protocolmapper.kind }}
     # Client-scoped protocol mapper. `name` is the natural key; the UUID {id} is
     # resolved via findby. Two parent scopes: {realm} and the owning client UUID.
+    # `name` natural key; UUID {id} resolved via findby + excluded from spec.
+    # Parent path params {realm} and {clientUuid} auto-surface as spec fields.
     identifiers:
       - name
     additionalStatusFields:
       - id
+    excludedSpecFields:
+      - id
     verbsDescription:
       - action: findby
         method: GET
-        path: /admin/realms/{realm}/clients/{client-uuid}/protocol-mappers/models
+        path: /admin/realms/{realm}/clients/{clientUuid}/protocol-mappers/models
       - action: create
         method: POST
-        path: /admin/realms/{realm}/clients/{client-uuid}/protocol-mappers/models
+        path: /admin/realms/{realm}/clients/{clientUuid}/protocol-mappers/models
       - action: get
         method: GET
-        path: /admin/realms/{realm}/clients/{client-uuid}/protocol-mappers/models/{id}
+        path: /admin/realms/{realm}/clients/{clientUuid}/protocol-mappers/models/{id}
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
       - action: update
         method: PUT
-        path: /admin/realms/{realm}/clients/{client-uuid}/protocol-mappers/models/{id}
+        path: /admin/realms/{realm}/clients/{clientUuid}/protocol-mappers/models/{id}
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
       - action: delete
         method: DELETE
-        path: /admin/realms/{realm}/clients/{client-uuid}/protocol-mappers/models/{id}
-    configurationFields:
-      - fromOpenAPI:
-          name: realm
-          in: path
-        fromRestDefinition:
-          actions: ["*"]
-      - fromOpenAPI:
-          name: client-uuid
-          in: path
-        fromRestDefinition:
-          actions: ["*"]
+        path: /admin/realms/{realm}/clients/{clientUuid}/protocol-mappers/models/{id}
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
 {{- end }}

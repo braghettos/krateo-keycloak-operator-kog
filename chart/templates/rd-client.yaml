@@ -21,6 +21,14 @@ spec:
       - clientId
     additionalStatusFields:
       - id
+    # `id` is the server-generated UUID: it is a required path param on
+    # get/update/delete but must NOT be a user-set spec field. Exclude it from
+    # the spec and source it from status (populated by findby) via
+    # requestFieldMapping. {realm} stays a normal (required) spec field.
+    # NOTE: path params must be declared at the OPERATION level in the OAS asset
+    # — oasgen-provider ignores path-item-level parameters.
+    excludedSpecFields:
+      - id
     verbsDescription:
       - action: findby
         method: GET
@@ -31,18 +39,19 @@ spec:
       - action: get
         method: GET
         path: /admin/realms/{realm}/clients/{id}
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
       - action: update
         method: PUT
         path: /admin/realms/{realm}/clients/{id}
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
       - action: delete
         method: DELETE
         path: /admin/realms/{realm}/clients/{id}
-    # {realm} is a parent scope (not the resource id): expose it as a spec field
-    # applied to every action.
-    configurationFields:
-      - fromOpenAPI:
-          name: realm
-          in: path
-        fromRestDefinition:
-          actions: ["*"]
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
 {{- end }}

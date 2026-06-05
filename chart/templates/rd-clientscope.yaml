@@ -14,10 +14,13 @@ spec:
   resourceGroup: {{ .Values.resourceGroup }}
   resource:
     kind: {{ .Values.restDefinitions.clientscope.kind }}
-    # `name` natural key; UUID {id} resolved via findby. Parent scope: {realm}.
+    # `name` natural key; server-generated UUID {id} resolved via findby and
+    # excluded from spec. {realm} parent path param auto-surfaces as a spec field.
     identifiers:
       - name
     additionalStatusFields:
+      - id
+    excludedSpecFields:
       - id
     verbsDescription:
       - action: findby
@@ -29,16 +32,19 @@ spec:
       - action: get
         method: GET
         path: /admin/realms/{realm}/client-scopes/{id}
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
       - action: update
         method: PUT
         path: /admin/realms/{realm}/client-scopes/{id}
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
       - action: delete
         method: DELETE
         path: /admin/realms/{realm}/client-scopes/{id}
-    configurationFields:
-      - fromOpenAPI:
-          name: realm
-          in: path
-        fromRestDefinition:
-          actions: ["*"]
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
 {{- end }}

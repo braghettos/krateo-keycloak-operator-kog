@@ -42,23 +42,23 @@ components:
           description: Server-generated identifier (read-only).
           readOnly: true
 paths:
-  /admin/realms/{realm}/clients/{client-uuid}/protocol-mappers/models:
-    parameters:
-    - name: realm
-      in: path
-      required: true
-      schema:
-        type: string
-    - name: client-uuid
-      in: path
-      required: true
-      schema:
-        type: string
+  /admin/realms/{realm}/clients/{clientUuid}/protocol-mappers/models:
     post:
       operationId: createProtocolmapper
       summary: Create Protocol Mapper
       tags:
       - protocolmapper
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: clientUuid
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
@@ -73,6 +73,17 @@ paths:
       summary: List/find Protocol Mapper
       tags:
       - protocolmapper
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: clientUuid
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: OK
@@ -82,28 +93,28 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ProtocolMapperRepresentation'
-  /admin/realms/{realm}/clients/{client-uuid}/protocol-mappers/models/{id}:
-    parameters:
-    - name: realm
-      in: path
-      required: true
-      schema:
-        type: string
-    - name: client-uuid
-      in: path
-      required: true
-      schema:
-        type: string
-    - name: id
-      in: path
-      required: true
-      schema:
-        type: string
+  /admin/realms/{realm}/clients/{clientUuid}/protocol-mappers/models/{id}:
     get:
       operationId: getProtocolmapper
       summary: Get Protocol Mapper
       tags:
       - protocolmapper
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: clientUuid
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: OK
@@ -116,6 +127,22 @@ paths:
       summary: Update Protocol Mapper
       tags:
       - protocolmapper
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: clientUuid
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
@@ -130,6 +157,22 @@ paths:
       summary: Delete Protocol Mapper
       tags:
       - protocolmapper
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: clientUuid
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '204':
           description: Deleted.

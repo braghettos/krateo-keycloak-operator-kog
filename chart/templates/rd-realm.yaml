@@ -20,6 +20,9 @@ spec:
       - realm
     additionalStatusFields:
       - id
+    # `id` is the server-generated realm UUID (read-only) — keep it out of spec.
+    excludedSpecFields:
+      - id
     verbsDescription:
       - action: create
         method: POST

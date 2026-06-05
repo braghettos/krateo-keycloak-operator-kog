@@ -39,17 +39,17 @@ components:
           readOnly: true
 paths:
   /admin/realms/{realm}/client-scopes:
-    parameters:
-    - name: realm
-      in: path
-      required: true
-      schema:
-        type: string
     post:
       operationId: createClientscope
       summary: Create Client Scope
       tags:
       - clientscope
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
@@ -64,6 +64,12 @@ paths:
       summary: List/find Client Scope
       tags:
       - clientscope
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: OK
@@ -74,22 +80,22 @@ paths:
                 items:
                   $ref: '#/components/schemas/ClientScopeRepresentation'
   /admin/realms/{realm}/client-scopes/{id}:
-    parameters:
-    - name: realm
-      in: path
-      required: true
-      schema:
-        type: string
-    - name: id
-      in: path
-      required: true
-      schema:
-        type: string
     get:
       operationId: getClientscope
       summary: Get Client Scope
       tags:
       - clientscope
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: OK
@@ -102,6 +108,17 @@ paths:
       summary: Update Client Scope
       tags:
       - clientscope
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
@@ -116,6 +133,17 @@ paths:
       summary: Delete Client Scope
       tags:
       - clientscope
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '204':
           description: Deleted.

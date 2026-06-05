@@ -21,6 +21,10 @@ spec:
       - alias
     additionalStatusFields:
       - internalId
+    # `internalId` is server-generated (read-only) — keep it out of spec.
+    # {realm} parent path param auto-surfaces as a spec field.
+    excludedSpecFields:
+      - internalId
     verbsDescription:
       - action: create
         method: POST
@@ -46,10 +50,4 @@ spec:
         requestFieldMapping:
           - inPath: alias
             inCustomResource: spec.alias
-    configurationFields:
-      - fromOpenAPI:
-          name: realm
-          in: path
-        fromRestDefinition:
-          actions: ["*"]
 {{- end }}

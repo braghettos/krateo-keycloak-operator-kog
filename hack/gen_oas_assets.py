@@ -117,8 +117,8 @@ READONLY = {"realm": "id", "client": "id", "protocolmapper": "id",
 PATHS = {
     "realm":            ("/admin/realms", "/admin/realms/{realm}"),
     "client":           ("/admin/realms/{realm}/clients", "/admin/realms/{realm}/clients/{id}"),
-    "protocolmapper":   ("/admin/realms/{realm}/clients/{client-uuid}/protocol-mappers/models",
-                         "/admin/realms/{realm}/clients/{client-uuid}/protocol-mappers/models/{id}"),
+    "protocolmapper":   ("/admin/realms/{realm}/clients/{clientUuid}/protocol-mappers/models",
+                         "/admin/realms/{realm}/clients/{clientUuid}/protocol-mappers/models/{id}"),
     "clientscope":      ("/admin/realms/{realm}/client-scopes", "/admin/realms/{realm}/client-scopes/{id}"),
     "group":            ("/admin/realms/{realm}/groups", "/admin/realms/{realm}/groups/{id}"),
     "identityprovider": ("/admin/realms/{realm}/identity-provider/instances",
@@ -159,27 +159,29 @@ def make_oas(key):
     arr_resp = {"200": {"description": "OK", "content": {"application/json":
                 {"schema": {"type": "array", "items": ref}}}}}
 
+    # oasgen-provider only reads path parameters declared at the OPERATION level
+    # (verified on a live cluster: path-item-level `parameters` are ignored, so
+    # the param never lands in the generated CRD spec). Attach params per-op.
+    coll_params = [param(p) for p in path_params(coll)]
+    item_params = [param(p) for p in path_params(item)]
+
     paths = collections.OrderedDict()
     # collection: POST (create) + GET (findby/list)
-    coll_params = [param(p) for p in path_params(coll)]
     paths[coll] = {}
-    if coll_params:
-        paths[coll]["parameters"] = coll_params
     paths[coll]["post"] = {"operationId": f"create{key.title()}", "summary": f"Create {TITLES[key]}",
-                           "tags": [key], "requestBody": json_body,
+                           "tags": [key], "parameters": coll_params, "requestBody": json_body,
                            "responses": {"201": {"description": "Created. Identifier returned via Location header."}}}
     paths[coll]["get"] = {"operationId": f"list{key.title()}", "summary": f"List/find {TITLES[key]}",
-                          "tags": [key], "responses": arr_resp}
+                          "tags": [key], "parameters": coll_params, "responses": arr_resp}
     # item: GET/PUT/DELETE
-    item_params = [param(p) for p in path_params(item)]
-    paths[item] = {"parameters": item_params,
-                   "get": {"operationId": f"get{key.title()}", "summary": f"Get {TITLES[key]}",
-                           "tags": [key], "responses": json_resp("200", "OK")},
+    paths[item] = {"get": {"operationId": f"get{key.title()}", "summary": f"Get {TITLES[key]}",
+                           "tags": [key], "parameters": item_params, "responses": json_resp("200", "OK")},
                    "put": {"operationId": f"update{key.title()}", "summary": f"Update {TITLES[key]}",
-                           "tags": [key], "requestBody": json_body,
+                           "tags": [key], "parameters": item_params, "requestBody": json_body,
                            "responses": {"204": {"description": "Updated."}}},
                    "delete": {"operationId": f"delete{key.title()}", "summary": f"Delete {TITLES[key]}",
-                              "tags": [key], "responses": {"204": {"description": "Deleted."}}}}
+                              "tags": [key], "parameters": item_params,
+                              "responses": {"204": {"description": "Deleted."}}}}
 
     doc = collections.OrderedDict()
     doc["openapi"] = "3.0.3"

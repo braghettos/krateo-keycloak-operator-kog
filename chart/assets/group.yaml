@@ -48,17 +48,17 @@ components:
           readOnly: true
 paths:
   /admin/realms/{realm}/groups:
-    parameters:
-    - name: realm
-      in: path
-      required: true
-      schema:
-        type: string
     post:
       operationId: createGroup
       summary: Create Group
       tags:
       - group
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
@@ -73,6 +73,12 @@ paths:
       summary: List/find Group
       tags:
       - group
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: OK
@@ -83,22 +89,22 @@ paths:
                 items:
                   $ref: '#/components/schemas/GroupRepresentation'
   /admin/realms/{realm}/groups/{id}:
-    parameters:
-    - name: realm
-      in: path
-      required: true
-      schema:
-        type: string
-    - name: id
-      in: path
-      required: true
-      schema:
-        type: string
     get:
       operationId: getGroup
       summary: Get Group
       tags:
       - group
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: OK
@@ -111,6 +117,17 @@ paths:
       summary: Update Group
       tags:
       - group
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
@@ -125,6 +142,17 @@ paths:
       summary: Delete Group
       tags:
       - group
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '204':
           description: Deleted.

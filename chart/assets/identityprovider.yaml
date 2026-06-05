@@ -52,17 +52,17 @@ components:
           readOnly: true
 paths:
   /admin/realms/{realm}/identity-provider/instances:
-    parameters:
-    - name: realm
-      in: path
-      required: true
-      schema:
-        type: string
     post:
       operationId: createIdentityprovider
       summary: Create Identity Provider
       tags:
       - identityprovider
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
@@ -77,6 +77,12 @@ paths:
       summary: List/find Identity Provider
       tags:
       - identityprovider
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: OK
@@ -87,22 +93,22 @@ paths:
                 items:
                   $ref: '#/components/schemas/IdentityProviderRepresentation'
   /admin/realms/{realm}/identity-provider/instances/{alias}:
-    parameters:
-    - name: realm
-      in: path
-      required: true
-      schema:
-        type: string
-    - name: alias
-      in: path
-      required: true
-      schema:
-        type: string
     get:
       operationId: getIdentityprovider
       summary: Get Identity Provider
       tags:
       - identityprovider
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: alias
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: OK
@@ -115,6 +121,17 @@ paths:
       summary: Update Identity Provider
       tags:
       - identityprovider
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: alias
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
@@ -129,6 +146,17 @@ paths:
       summary: Delete Identity Provider
       tags:
       - identityprovider
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: alias
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '204':
           description: Deleted.

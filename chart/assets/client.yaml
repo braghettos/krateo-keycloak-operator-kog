@@ -90,17 +90,17 @@ components:
           readOnly: true
 paths:
   /admin/realms/{realm}/clients:
-    parameters:
-    - name: realm
-      in: path
-      required: true
-      schema:
-        type: string
     post:
       operationId: createClient
       summary: Create Client
       tags:
       - client
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
@@ -115,6 +115,12 @@ paths:
       summary: List/find Client
       tags:
       - client
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: OK
@@ -125,22 +131,22 @@ paths:
                 items:
                   $ref: '#/components/schemas/ClientRepresentation'
   /admin/realms/{realm}/clients/{id}:
-    parameters:
-    - name: realm
-      in: path
-      required: true
-      schema:
-        type: string
-    - name: id
-      in: path
-      required: true
-      schema:
-        type: string
     get:
       operationId: getClient
       summary: Get Client
       tags:
       - client
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: OK
@@ -153,6 +159,17 @@ paths:
       summary: Update Client
       tags:
       - client
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
@@ -167,6 +184,17 @@ paths:
       summary: Delete Client
       tags:
       - client
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '204':
           description: Deleted.
