@@ -69,6 +69,13 @@ SCHEMAS = {
         "defaultClientScopes": STRARR,
         "optionalClientScopes": STRARR,
         "attributes": STRMAP,
+        # Inline protocol mappers created/updated WITH the client — fully
+        # declarative, no parent-UUID needed (unlike the standalone
+        # ProtocolMapper resource). Ideal for mappers owned by a client you
+        # also manage here (e.g. the `groups` mapper for SSO). Uses a $ref:
+        # oasgen-provider drops inline array-of-object items.
+        "protocolMappers": {"type": "array",
+                            "items": {"$ref": "#/components/schemas/ClientProtocolMapperEntry"}},
     }),
     "protocolmapper": ("ProtocolMapperRepresentation", {
         "name": prop("string", "Mapper name. Natural key (findby)."),
@@ -103,6 +110,23 @@ SCHEMAS = {
         "firstBrokerLoginFlowAlias": prop("string"),
         "config": STRMAP,
     }),
+}
+
+# Extra named component schemas referenced via $ref by a resource's main schema.
+# (oasgen-provider supports $ref'd object items but drops inline array-of-object.)
+EXTRA_SCHEMAS = {
+    "client": {
+        "ClientProtocolMapperEntry": {
+            "type": "object",
+            "properties": {
+                "name": prop("string"),
+                "protocol": prop("string", "openid-connect or saml"),
+                "protocolMapper": prop("string", "e.g. oidc-group-membership-mapper"),
+                "consentRequired": prop("boolean"),
+                "config": STRMAP,
+            },
+        },
+    },
 }
 
 # requiredfields per resource (the natural key)
@@ -148,6 +172,7 @@ def make_oas(key):
                                        "description": "Keycloak admin access token (OAuth2 Bearer)."}},
         "schemas": {schema_name: {"type": "object", "required": REQUIRED[key], "properties": full_props}},
     }
+    components["schemas"].update(EXTRA_SCHEMAS.get(key, {}))
 
     def param(name):
         return {"name": name, "in": "path", "required": True, "schema": {"type": "string"}}

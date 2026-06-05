@@ -49,6 +49,20 @@ spec:
     - "https://<KEYSTONE_HOST>/redirect_uri"
   webOrigins:
     - "https://<KEYSTONE_HOST>"
+  # `groups` Group Membership mapper, declared INLINE on the client — fully
+  # declarative, no client UUID needed. Token claim `groups`, full path OFF —
+  # consumed identically by Krateo authn (additionalScopes: groups) and the
+  # Keystone OIDC mapping rules.
+  protocolMappers:
+    - name: groups
+      protocol: openid-connect
+      protocolMapper: oidc-group-membership-mapper
+      config:
+        "claim.name": "groups"
+        "full.path": "false"
+        "id.token.claim": "true"
+        "access.token.claim": "true"
+        "userinfo.token.claim": "true"
 ---
 # Krateo portal login client — confidential OIDC RP for the authn service.
 apiVersion: keycloak.ogen.krateo.io/v1alpha1
@@ -71,29 +85,10 @@ spec:
   webOrigins:
     - "https://<KRATEO_HOST>"
 ---
-# `groups` Group Membership mapper on the keystone client. Token claim `groups`,
-# full path OFF — required identically by Krateo authn (additionalScopes: groups)
-# and by the Keystone OIDC mapping rules.
-# NOTE: spec.clientUuid must be the server-generated UUID of the `keystone`
-# client (read it from the KeycloakClient `keystone` status.id once reconciled).
-apiVersion: keycloak.ogen.krateo.io/v1alpha1
-kind: KeycloakProtocolMapper
-metadata:
-  name: keystone-groups
-  namespace: krateo-system
-spec:
-  configurationRef: { name: keycloak-admin, namespace: krateo-system }
-  realm: krateo
-  clientUuid: "<KEYSTONE_CLIENT_UUID>"
-  name: groups
-  protocol: openid-connect
-  protocolMapper: oidc-group-membership-mapper
-  config:
-    "claim.name": "groups"
-    "full.path": "false"
-    "id.token.claim": "true"
-    "access.token.claim": "true"
-    "userinfo.token.claim": "true"
+# (The groups mapper is declared inline on the keystone client above. The
+# standalone KeycloakProtocolMapper resource still exists for mappers on
+# client-scopes or pre-existing clients you don't manage here — it takes a
+# clientUuid parent reference.)
 ---
 # Example OpenStack project group. Membership flows to Keystone via the `groups`
 # claim; the Keystone mapping turns `os-project-demo` into a project/role grant.

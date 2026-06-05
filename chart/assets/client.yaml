@@ -84,10 +84,31 @@ components:
           type: object
           additionalProperties:
             type: string
+        protocolMappers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientProtocolMapperEntry'
         id:
           type: string
           description: Server-generated identifier (read-only).
           readOnly: true
+    ClientProtocolMapperEntry:
+      type: object
+      properties:
+        name:
+          type: string
+        protocol:
+          type: string
+          description: openid-connect or saml
+        protocolMapper:
+          type: string
+          description: e.g. oidc-group-membership-mapper
+        consentRequired:
+          type: boolean
+        config:
+          type: object
+          additionalProperties:
+            type: string
 paths:
   /admin/realms/{realm}/clients:
     post:

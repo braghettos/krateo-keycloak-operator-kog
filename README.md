@@ -17,10 +17,15 @@ The **lifecycle** half (installing Keycloak itself) is the sibling
 | --- | --- | --- |
 | `KeycloakRealm` | realm | natural key `realm` (direct) |
 | `KeycloakClient` | client | `clientId` → UUID via `findby` |
-| `KeycloakProtocolMapper` | client protocol mapper | `name` → UUID via `findby`; parent `clientUuid` |
+| `KeycloakProtocolMapper` | protocol mapper on a client-scope / pre-existing client | `name` → UUID via `findby`; parent `clientUuid` |
 | `KeycloakClientScope` | client scope | `name` → UUID via `findby` |
 | `KeycloakGroup` | group | `name` → UUID via `findby` |
 | `KeycloakIdentityProvider` | IdP instance | natural key `alias` (direct) |
+
+> **Mappers on a client you manage here** are best declared **inline** on the
+> `KeycloakClient` via its `protocolMappers` array — fully declarative, no
+> parent UUID. Use the standalone `KeycloakProtocolMapper` only for mappers on a
+> client-scope or a client you don't manage as a CR.
 
 Each maps 1:1 to a hand-curated OAS subset in `chart/assets/<key>.yaml`. The
 curated schemas use field names verbatim from Keycloak's official OAS 3.0.3 so
@@ -71,8 +76,11 @@ kubectl -n krateo-system get keycloakclients.keycloak.ogen.krateo.io -w
 - ✅ **findby/observe** — subsequent reconciles match the client by `clientId`
   ("External resource is up to date").
 - ✅ **update** — changing `spec.name`/`redirectUris` propagates to Keycloak.
+- ✅ **inline `protocolMappers`** — a `KeycloakClient` with a `groups` mapper in
+  its `protocolMappers` array creates the client *and* the mapper; the
+  post-create observe is "up to date" (no churn from the server-added mapper id).
 
-Two corrections the spike forced into the design (now applied to all six RDs):
+Three corrections the spike forced into the design (now applied to all six RDs):
 
 1. **Path params must be declared at the OPERATION level** in the OAS asset.
    oasgen-provider ignores path-item-level `parameters`, so the param (e.g.
@@ -82,6 +90,9 @@ Two corrections the spike forced into the design (now applied to all six RDs):
    `excludedSpecFields: [id]` + `requestFieldMapping` sourcing it from
    `status.id` (populated by `findby`). `configurationFields` is NOT used for
    path params (doing so drops them).
+3. **Nested array fields need a `$ref`.** oasgen-provider drops inline
+   array-of-object items, so `protocolMappers` references a named
+   `ClientProtocolMapperEntry` schema instead of an inline object.
 
 The other five resources (realm, group, client-scope, protocol-mapper,
 identity-provider) follow this same proven pattern but have not each been
