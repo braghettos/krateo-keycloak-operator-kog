@@ -1,0 +1,43 @@
+# LINK 2 — Krateo authn: log into the Krateo portal via Keycloak.
+# The authn service's OIDC strategy turns "Login with Keycloak" into an OIDC
+# Authorization Code flow against the `krateo-authn` client. After this, the
+# user's browser holds a Keycloak SSO session cookie — the glue that later makes
+# Horizon log in silently.
+#
+# Replace <KEYCLOAK_HOST> / <KRATEO_HOST>. The client secret is the one Keycloak
+# generated for the `krateo-authn` client (Clients > krateo-authn > Credentials,
+# or read it back from the KeycloakClient status / Admin API).
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: krateo-authn-client
+  namespace: krateo-system
+type: Opaque
+stringData:
+  clientSecret: "<KRATEO_AUTHN_CLIENT_SECRET>"
+---
+apiVersion: oidc.authn.krateo.io/v1alpha1
+kind: OIDCConfig
+metadata:
+  name: keycloak
+  namespace: krateo-system
+spec:
+  clientID: krateo-authn
+  clientSecret:
+    name: krateo-authn-client
+    namespace: krateo-system
+    key: clientSecret
+  # Discovery endpoint of the `krateo` realm — authorizationURL/tokenURL/userInfoURL
+  # are derived from it automatically.
+  discoveryURL: "https://<KEYCLOAK_HOST>/realms/krateo/.well-known/openid-configuration"
+  # Must match a redirect URI on the krateo-authn client; points at the Krateo
+  # frontend's /auth/oidc path.
+  redirectURI: "https://<KRATEO_HOST>/auth/oidc"
+  # Pull the `groups` claim (the membership mapper on the realm) into the token.
+  additionalScopes: "groups"
+  graphics:
+    displayName: "Login with Keycloak"
+    icon: "key"
+    backgroundColor: "#ffffff"
+    textColor: "#000000"

@@ -1,0 +1,27 @@
+# LINK 5 — the payoff: a Krateo Markdown widget whose link drops the user into
+# Horizon already logged in.
+#
+# Because the user reached this widget by logging into Krateo via Keycloak
+# (LINK 2), they hold a live Keycloak SSO session. The link targets Horizon's
+# WebSSO trigger with origin=<horizon>/auth/websso/, so the redirect chain
+# Horizon -> Keystone -> Keycloak completes SILENTLY (no prompt) and lands them
+# in Horizon authenticated.
+#
+# Replace <KEYSTONE_HOST> / <HORIZON_HOST>. Add this widget to a Krateo page/panel
+# (kind: Page / Panel / Column referencing this Markdown by name).
+---
+apiVersion: widgets.templates.krateo.io/v1beta1
+kind: Markdown
+metadata:
+  name: openstack-sso-link
+  namespace: krateo-system
+spec:
+  widgetData:
+    markdown: |
+      ## OpenStack
+
+      Your OpenStack tenant, single sign-on — no second login.
+
+      [🚀 Open Horizon (SSO)](https://<KEYSTONE_HOST>/v3/auth/OS-FEDERATION/websso/openid?origin=https://<HORIZON_HOST>/auth/websso/)
+
+      > Opens the OpenStack dashboard using your existing Krateo / Keycloak session.

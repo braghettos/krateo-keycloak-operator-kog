@@ -1,0 +1,26 @@
+# LINK 4 — Horizon WebSSO.
+# Helm VALUES overrides for the OpenStack-Helm Horizon chart (already templates
+# WebSSO natively via conf.horizon.local_settings.config.auth.sso.*). Feed these
+# into the horizon Composition's values.
+#
+# Effect: Horizon's login offers "Login with Keycloak", and (with initial_choice
+# = openid) redirects straight into the Keystone federated endpoint → Keycloak.
+# Replace <KEYSTONE_HOST>.
+conf:
+  horizon:
+    local_settings:
+      config:
+        auth:
+          sso:
+            enabled: true
+            # show the Keycloak choice first; a deep-link (the Krateo widget)
+            # bypasses the chooser entirely.
+            initial_choice: "openid"
+            # external, browser-reachable v3 endpoint of Keystone
+            websso_keystone_url: "https://<KEYSTONE_HOST>/v3"
+          # maps WEBSSO_CHOICES / WEBSSO_IDP_MAPPING: name -> (idp, protocol)
+          idp_mapping:
+            - name: openid
+              label: "Login with Keycloak"
+              idp: keycloak
+              protocol: openid

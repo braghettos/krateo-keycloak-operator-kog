@@ -1,0 +1,76 @@
+# LINK 3 — Keystone OIDC federation (mod_auth_openidc).
+# Helm VALUES overrides for the OpenStack-Helm Keystone chart used by the
+# `openstack-as-a-service` blueprint (braghettos/krateo-openstack-blueprint).
+# Feed these into the keystone Composition's values.
+#
+# Effect: Keystone's Apache becomes an OIDC Relying Party of the `krateo` realm
+# (the `keystone` client). Federated logins are mapped to Keystone users/groups,
+# and the `groups` claim drives project/role via the mapping (see 02b below).
+#
+# ⚠️ NOT yet run against a live Keystone here — claim/header names
+# (OIDC-groups etc.) and the mod_auth_openidc module presence in the keystone
+# image must be confirmed on your cluster. Replace <KEYCLOAK_HOST>/<KEYSTONE_HOST>
+# /<HORIZON_HOST> and the secrets.
+conf:
+  keystone:
+    auth:
+      # add the federated method
+      methods: password,token,openid
+    openid:
+      # must EXACTLY match the token issuer of the krateo realm
+      remote_id_attribute: HTTP_OIDC_ISS
+    federation:
+      trusted_dashboard:
+        - "https://<HORIZON_HOST>/auth/websso/"
+      sso_callback_template: /etc/keystone/sso_callback_template.html
+
+  # enable the Apache OIDC module in the keystone image
+  software:
+    apache2:
+      a2enmod: "auth_openidc headers"
+
+  # Override the keystone Apache vhost to add the OIDC RP config + the two
+  # protected federation Locations. Keep the rest of the upstream vhost intact;
+  # this is the minimal federation delta.
+  wsgi_keystone: |
+    {{- $portInt := tuple "identity" "service" "api" $ | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+    Listen 0.0.0.0:{{ $portInt }}
+    LogFormat "%h %l %u %t \"%r\" %>s %b" combined
+    ErrorLog /dev/stdout
+    CustomLog /dev/stdout combined
+
+    OIDCClaimPrefix "OIDC-"
+    OIDCClaimDelimiter ";"
+    OIDCResponseType "code"
+    OIDCScope "openid email profile groups"
+    OIDCProviderMetadataURL https://<KEYCLOAK_HOST>/realms/krateo/.well-known/openid-configuration
+    OIDCClientID keystone
+    OIDCClientSecret <KEYSTONE_CLIENT_SECRET>
+    OIDCCryptoPassphrase <RANDOM_PASSPHRASE>
+    OIDCRedirectURI https://<KEYSTONE_HOST>/v3/auth/OS-FEDERATION/identity_providers/keycloak/protocols/openid/redirect_uri
+
+    <VirtualHost *:{{ $portInt }}>
+      WSGIDaemonProcess keystone-public processes=1 threads=1 user=keystone group=keystone display-name=%{GROUP}
+      WSGIProcessGroup keystone-public
+      WSGIScriptAlias / /var/www/cgi-bin/keystone/wsgi.py
+      WSGIApplicationGroup %{GLOBAL}
+      WSGIPassAuthorization On
+      ErrorLog /dev/stdout
+      CustomLog /dev/stdout combined
+
+      <Location /v3/auth/OS-FEDERATION/identity_providers/keycloak/protocols/openid/websso>
+        Require valid-user
+        AuthType openid-connect
+      </Location>
+      <Location /v3/auth/OS-FEDERATION/websso/openid>
+        Require valid-user
+        AuthType openid-connect
+      </Location>
+      <Location /v3/auth/OS-FEDERATION/identity_providers/keycloak/protocols/openid/redirect_uri>
+        Require valid-user
+        AuthType openid-connect
+      </Location>
+    </VirtualHost>
+
+# The keystone client secret + OIDC crypto passphrase are referenced above as
+# literals for clarity; in production inject them via a Secret / ESO instead.
