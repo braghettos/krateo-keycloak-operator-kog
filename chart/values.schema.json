@@ -1,0 +1,254 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "type": "object",
+  "title": "Keycloak Config KOG",
+  "description": "Krateo Operator Generator (KOG) that exposes Keycloak Admin API resources (realm, client, protocol-mapper, client-scope, group, identity-provider) as native Kubernetes custom resources. oasgen-provider + rest-dynamic-controller reconcile each CR against a running Keycloak Admin REST API; the admin bearer token is delivered and rotated into a Secret by the External Secrets Operator.",
+  "required": [
+    "keycloak"
+  ],
+  "properties": {
+    "keycloak": {
+      "type": "object",
+      "title": "Keycloak target",
+      "description": "Connection to the Keycloak server the generated controllers call.",
+      "required": [
+        "baseUrl"
+      ],
+      "properties": {
+        "baseUrl": {
+          "type": "string",
+          "title": "Keycloak base URL",
+          "description": "Base URL of the Keycloak server the generated controllers call (no trailing slash). Injected into every OAS asset's servers[0].url via Helm tpl. The in-cluster default points at the Service created by the operator blueprint.",
+          "default": "http://keycloak-service.keycloak-system.svc.cluster.local:8080"
+        }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "title": "Admin bearer token",
+      "description": "Admin bearer token contract. rest-dynamic-controller reads a short-lived bearer token from a Secret referenced by each CR's authenticationRefs. By default the External Secrets Operator mints a fresh token from Keycloak's token endpoint (client_credentials) on a refreshInterval shorter than the token TTL and writes it into the Secret.",
+      "properties": {
+        "secretName": {
+          "type": "string",
+          "title": "Token Secret name",
+          "description": "Name of the Secret holding the Keycloak admin bearer token consumed by the generated controllers.",
+          "default": "keycloak-admin-token"
+        },
+        "secretKey": {
+          "type": "string",
+          "title": "Token Secret key",
+          "description": "Key within the Secret that holds the bearer token value.",
+          "default": "token"
+        },
+        "externalSecret": {
+          "type": "object",
+          "title": "External Secret (token rotation)",
+          "description": "External Secrets Operator wiring that mints and rotates the Keycloak admin access token via client_credentials.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enable ExternalSecret",
+              "description": "When true, render the ESO Webhook generator + ExternalSecret that mint and rotate the admin bearer token. Disable to supply the token Secret yourself.",
+              "default": true
+            },
+            "refreshInterval": {
+              "type": "string",
+              "title": "Refresh interval",
+              "description": "How often ESO mints a fresh token. Keep this below the Keycloak access-token lifespan so the bearer never goes stale.",
+              "default": "60s"
+            },
+            "generatorRef": {
+              "type": "object",
+              "title": "Generator reference",
+              "description": "Reference to the ESO Generator (preferred) or SecretStore that yields the token.",
+              "properties": {
+                "apiVersion": {
+                  "type": "string",
+                  "title": "Generator apiVersion",
+                  "description": "apiVersion of the ESO generator resource.",
+                  "default": "generators.external-secrets.io/v1alpha1"
+                },
+                "kind": {
+                  "type": "string",
+                  "title": "Generator kind",
+                  "description": "Kind of the ESO generator resource.",
+                  "default": "Webhook"
+                },
+                "name": {
+                  "type": "string",
+                  "title": "Generator name",
+                  "description": "Name of the ESO generator resource that mints the token.",
+                  "default": "keycloak-admin-token-webhook"
+                }
+              }
+            },
+            "tokenEndpoint": {
+              "type": "string",
+              "title": "Token endpoint",
+              "description": "Keycloak OpenID Connect token endpoint the generator POSTs the client_credentials grant to.",
+              "default": "http://keycloak-service.keycloak-system.svc.cluster.local:8080/realms/master/protocol/openid-connect/token"
+            },
+            "clientId": {
+              "type": "string",
+              "title": "Client ID",
+              "description": "client_credentials client_id of the service-account client holding the required realm-management roles.",
+              "default": "krateo-kog"
+            },
+            "clientSecretRef": {
+              "type": "object",
+              "title": "Client secret reference",
+              "description": "Reference to a pre-existing Secret holding the service-account client's secret (kept out of values).",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "title": "Secret name",
+                  "description": "Name of the Secret holding the client secret.",
+                  "default": "keycloak-kog-client"
+                },
+                "key": {
+                  "type": "string",
+                  "title": "Secret key",
+                  "description": "Key within the Secret holding the client secret value.",
+                  "default": "clientSecret"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "restDefinitions": {
+      "type": "object",
+      "title": "RestDefinitions",
+      "description": "Which RestDefinitions to emit. Each maps 1:1 to an assets/<key>.yaml OAS. The kind is intentionally prefixed Keycloak to avoid crdgen collisions with same-named lowercase body properties.",
+      "properties": {
+        "realm": {
+          "type": "object",
+          "title": "Realm",
+          "description": "KeycloakRealm RestDefinition.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Emit the KeycloakRealm RestDefinition.",
+              "default": true
+            },
+            "kind": {
+              "type": "string",
+              "title": "Kind",
+              "description": "Kubernetes kind for the generated CRD.",
+              "default": "KeycloakRealm"
+            }
+          }
+        },
+        "client": {
+          "type": "object",
+          "title": "Client",
+          "description": "KeycloakClient RestDefinition.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Emit the KeycloakClient RestDefinition.",
+              "default": true
+            },
+            "kind": {
+              "type": "string",
+              "title": "Kind",
+              "description": "Kubernetes kind for the generated CRD.",
+              "default": "KeycloakClient"
+            }
+          }
+        },
+        "protocolmapper": {
+          "type": "object",
+          "title": "Protocol mapper",
+          "description": "KeycloakProtocolMapper RestDefinition.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Emit the KeycloakProtocolMapper RestDefinition.",
+              "default": true
+            },
+            "kind": {
+              "type": "string",
+              "title": "Kind",
+              "description": "Kubernetes kind for the generated CRD.",
+              "default": "KeycloakProtocolMapper"
+            }
+          }
+        },
+        "clientscope": {
+          "type": "object",
+          "title": "Client scope",
+          "description": "KeycloakClientScope RestDefinition.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Emit the KeycloakClientScope RestDefinition.",
+              "default": true
+            },
+            "kind": {
+              "type": "string",
+              "title": "Kind",
+              "description": "Kubernetes kind for the generated CRD.",
+              "default": "KeycloakClientScope"
+            }
+          }
+        },
+        "group": {
+          "type": "object",
+          "title": "Group",
+          "description": "KeycloakGroup RestDefinition.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Emit the KeycloakGroup RestDefinition.",
+              "default": true
+            },
+            "kind": {
+              "type": "string",
+              "title": "Kind",
+              "description": "Kubernetes kind for the generated CRD.",
+              "default": "KeycloakGroup"
+            }
+          }
+        },
+        "identityprovider": {
+          "type": "object",
+          "title": "Identity provider",
+          "description": "KeycloakIdentityProvider RestDefinition.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Emit the KeycloakIdentityProvider RestDefinition.",
+              "default": true
+            },
+            "kind": {
+              "type": "string",
+              "title": "Kind",
+              "description": "Kubernetes kind for the generated CRD.",
+              "default": "KeycloakIdentityProvider"
+            }
+          }
+        }
+      }
+    },
+    "resourceGroup": {
+      "type": "string",
+      "title": "Resource group",
+      "description": "Kubernetes API group the generated CRDs register under. GVK = <group>/v1alpha1.",
+      "default": "keycloak.ogen.krateo.io"
+    },
+    "verbose": {
+      "type": "boolean",
+      "title": "Verbose logging",
+      "description": "Enable verbose logging on the generated connectors (annotation krateo.io/connector-verbose).",
+      "default": false
+    }
+  }
+}

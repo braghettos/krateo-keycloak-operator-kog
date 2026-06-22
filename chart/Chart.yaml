@@ -11,6 +11,17 @@ type: application
 version: 0.1.0
 appVersion: "26.0"
 home: https://www.keycloak.org/
+icon: https://raw.githubusercontent.com/krateoplatformops/krateo/main/docs/media/logo.svg
+keywords:
+  - security
+  - keycloak
+  - identity
+  - kog
+annotations:
+  krateo.io/category: security
+  krateo.io/display-name: Keycloak Config KOG
+  krateo.io/maturity: beta
+  krateoSupportedVersion: ">= 2.5.1"
 sources:
   - https://www.keycloak.org/docs-api/latest/rest-api/openapi.yaml
   - https://github.com/krateoplatformops/oasgen-provider

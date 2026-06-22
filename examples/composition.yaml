@@ -1,0 +1,36 @@
+# Keycloak Config KOG — one Composition that installs the oasgen-provider
+# RestDefinitions + ESO token wiring for the Keycloak Admin API.
+#
+# Per-resource CRs (KeycloakRealm, KeycloakClient, KeycloakProtocolMapper,
+# KeycloakClientScope, KeycloakGroup, KeycloakIdentityProvider) are NOT created
+# here: apply your own once the CRDs exist. Ready-to-edit samples live in
+# chart/samples/ (00-configurations.yaml, 10-sso-realm.yaml) at the repo root.
+---
+apiVersion: composition.krateo.io/v0-1-0
+kind: KeycloakConfigKog
+metadata:
+  name: keycloak-config-kog
+  namespace: krateo-system
+spec:
+  keycloak:
+    # Point this at your running Keycloak Admin API (no trailing slash).
+    baseUrl: http://keycloak-service.keycloak-system.svc.cluster.local:8080
+  auth:
+    externalSecret:
+      # ESO mints + rotates the short-lived admin bearer token.
+      enabled: true
+      refreshInterval: 60s
+  restDefinitions:
+    realm:
+      enabled: true
+    client:
+      enabled: true
+    protocolmapper:
+      enabled: true
+    clientscope:
+      enabled: true
+    group:
+      enabled: true
+    identityprovider:
+      enabled: true
+  verbose: false
