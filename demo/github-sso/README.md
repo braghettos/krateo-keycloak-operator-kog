@@ -64,13 +64,21 @@ true team-based group mapping needs the GitHub org/teams to be fetched and match
 (an advanced/custom mapper + the `read:org` scope already requested above). The
 hardcoded-group approach is what most GitHub→Keycloak→app setups use in practice.
 
-## ⚠️ Validation status
+## ✅ Validation status — run live on GKE
 
-- ✅ The KOG side is real: `KeycloakIdentityProvider` and the new
-  `KeycloakIdentityProviderMapper` are generated CRDs (chart renders clean,
-  7 resources). `KeycloakClient` was validated end-to-end on a live cluster;
-  these two follow the same proven RestDefinition pattern.
-- ⚪️ The GitHub broker + the full HOP-1→HOP-2 flow have **not** been run live
-  here (needs a running Keycloak + OpenStack + a real GitHub OAuth App). Confirm
-  when you run it: the GitHub OAuth App callback URL, and that
-  `hardcoded-group-idp-mapper`'s `group` path matches the `KeycloakGroup` name.
+The full HOP-1→HOP-2 chain was **validated end-to-end on a real GKE cluster**
+(`osh-sso`): a GitHub account logs in through Keycloak, is federated into Keystone,
+and lands on Horizon auto-provisioned into the `demo` project. Reproducible
+walkthrough with every command/manifest: [`../../QUICKSTART-GKE-LIVE.md`](../../QUICKSTART-GKE-LIVE.md).
+
+Two things the live run corrected vs. the first draft:
+
+- **Mapper type is `oidc-hardcoded-group-idp-mapper`**, not `hardcoded-group-idp-mapper`
+  — the non-`oidc-` variant NPEs under a `keycloak-oidc`/social broker. The mapper body
+  must also carry `identityProviderAlias` (else 409).
+- The live chain assigns the OpenStack project via **Keystone-side auto-provisioning**
+  (a `projects` rule in the `IdentityMapping`, managed by the
+  [Keystone KOG](https://github.com/braghettos/openstack-keystone-operator-kog)), so the
+  federated user is dropped straight into `demo` with the `member` role — the Keycloak
+  `os-project-demo` group is the authorization *source*, the Keystone mapping is the
+  *sink*. Both sides are now CRs.
