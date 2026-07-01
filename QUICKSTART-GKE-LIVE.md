@@ -319,8 +319,8 @@ conf:
    ![Horizon SSO login](docs/images/01-horizon-login.png)
 2. You are redirected to Keycloak's **KRATEO SSO** page. Click **GitHub**.
    ![Keycloak GitHub button](docs/images/02-keycloak-github.png)
-3. GitHub prompts to authorize the OAuth App (first time only), then redirects back.
-   ![GitHub authorize](docs/images/03-github-authorize.png)
+3. GitHub prompts to authorize the OAuth App **on first login only**, then redirects
+   back (later logins skip straight through — the grant is remembered).
 4. Keycloak brokers the identity, Keystone federates it (auto-provisioning the user
    into the `demo` project), and Horizon drops you on the dashboard as your GitHub
    user, scoped to **`keycloak • demo`**.
