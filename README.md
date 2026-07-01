@@ -95,10 +95,32 @@ Three corrections the spike forced into the design (now applied to all six RDs):
    array-of-object items, so `protocolMappers` references a named
    `ClientProtocolMapperEntry` schema instead of an inline object.
 
-The other five resources (realm, group, client-scope, protocol-mapper,
-identity-provider) follow this same proven pattern but have not each been
-individually run yet. `config` free-form maps (mapper/IdP `Map<String,String>`)
-still want a round-trip check.
+**All seven resources validated** on a live kind cluster (Keycloak 26.6.3):
+`KeycloakRealm`, `KeycloakGroup`, `KeycloakClientScope`, `KeycloakClient`,
+`KeycloakProtocolMapper`, `KeycloakIdentityProvider`, and
+`KeycloakIdentityProviderMapper` each reconcile into the real Keycloak.
+
+Resource-specific note surfaced by validation:
+
+- **`KeycloakIdentityProviderMapper` needs both `alias` (path) *and*
+  `identityProviderAlias` (body).** Keycloak returns a misleading
+  `409 Duplicate resource` if `identityProviderAlias` is omitted.
+
+### ESO token path — validated
+The `auth.externalSecret` path works end-to-end: ESO mints a fresh admin bearer
+token from Keycloak's token endpoint (via the `krateo-kog` service-account
+client) into `keycloak-admin-token`, and it calls the Admin API successfully.
+Requirements confirmed on ESO ≥ 0.19:
+
+- the client-secret Secret (`keycloak-kog-client`) must carry the label
+  **`external-secrets.io/type: webhook`** (ESO refuses to read it otherwise);
+- the `krateo-kog` client needs `serviceAccountsEnabled` + admin rights
+  (the realm `admin` role, or the specific `realm-management` roles).
+
+Fixes this forced into the chart's `externalsecret.yaml`: `ExternalSecret`
+`external-secrets.io/v1` (v1beta1 is removed); the Webhook body references the
+secret as `.kog.clientSecret` (name-then-key); and `result.jsonPath: "$"`
+returns the whole token response so the template can pick `.access_token`.
 
 ## Regenerating the OAS assets
 

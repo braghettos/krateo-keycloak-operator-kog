@@ -65,8 +65,11 @@ spec:
     name: keycloak-admin
     namespace: krateo-system
   realm: krateo
-  alias: github                       # parent IdP (the github broker above)
+  alias: github                       # parent IdP (path param)
   name: github-default-group
+  # identityProviderAlias must ALSO be set (body field); Keycloak returns a
+  # misleading 409 "Duplicate resource" if it is omitted. Same value as alias.
+  identityProviderAlias: github
   identityProviderMapper: hardcoded-group-idp-mapper
   config:
     group: "/os-project-demo"
