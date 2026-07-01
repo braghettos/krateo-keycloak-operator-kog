@@ -1,0 +1,59 @@
+# HOP 1 — Keycloak brokers login TO GitHub, and drops every GitHub user into the
+# `os-project-demo` group (which the Keystone mapping turns into an OpenStack
+# project/role). This is the ONLY thing that changes vs. the base SSO demo — the
+# realm, keystone client, groups mapper, Keystone federation, Horizon WebSSO and
+# the Krateo widget are all reused from ../sso-end-to-end unchanged.
+#
+# Prereq: a GitHub OAuth App (Settings > Developer settings > OAuth Apps) with
+# Authorization callback URL:
+#   https://<KEYCLOAK_HOST>/realms/krateo/broker/github/endpoint
+# Replace <GITHUB_OAUTH_APP_ID> / <GITHUB_OAUTH_APP_SECRET>.
+---
+# The GitHub broker (Keycloak's built-in social provider — GitHub is OAuth2).
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakIdentityProvider
+metadata: { name: github, namespace: krateo-system }
+spec:
+  configurationRef: { name: keycloak-admin, namespace: krateo-system }
+  realm: krateo
+  alias: github
+  providerId: github
+  displayName: "GitHub"
+  enabled: true
+  trustEmail: true
+  config:
+    clientId: "<GITHUB_OAUTH_APP_ID>"
+    clientSecret: "<GITHUB_OAUTH_APP_SECRET>"
+    # read:org lets Keycloak see org/team membership (needed only for the
+    # advanced, team-based mapping variant noted in the README).
+    defaultScope: "read:user user:email read:org"
+---
+# The group every federated OpenStack user needs. Its attributes are what the
+# Keystone mapping reads to assign a project/role (see ../sso-end-to-end).
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakGroup
+metadata: { name: os-project-demo, namespace: krateo-system }
+spec:
+  configurationRef: { name: keycloak-admin, namespace: krateo-system }
+  realm: krateo
+  name: os-project-demo
+  attributes:
+    openstack-project: ["demo"]
+    openstack-role: ["member"]
+---
+# HOP-1 authorization — the new KeycloakIdentityProviderMapper resource.
+# `hardcoded-group-idp-mapper` puts EVERY GitHub-brokered user into
+# /os-project-demo, so they land in the OpenStack `demo` project. Fully
+# declarative; no console clicks.
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakIdentityProviderMapper
+metadata: { name: github-default-group, namespace: krateo-system }
+spec:
+  configurationRef: { name: keycloak-admin, namespace: krateo-system }
+  realm: krateo
+  alias: github                       # parent IdP (the github broker above)
+  name: github-default-group
+  identityProviderMapper: hardcoded-group-idp-mapper
+  config:
+    group: "/os-project-demo"
+    syncMode: "INHERIT"

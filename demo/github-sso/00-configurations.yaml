@@ -1,0 +1,29 @@
+# Per-Kind Configuration CRs for this variant — all reference the same
+# ESO-managed (or manually-minted) `keycloak-admin-token` Secret.
+# (KeycloakRealm/Client/Group configs are also in ../sso-end-to-end; repeated
+# here so this folder is self-contained.)
+---
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakRealmConfiguration
+metadata: { name: keycloak-admin, namespace: krateo-system }
+spec: { authentication: { bearer: { tokenRef: { name: keycloak-admin-token, namespace: krateo-system, key: token } } } }
+---
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakClientConfiguration
+metadata: { name: keycloak-admin, namespace: krateo-system }
+spec: { authentication: { bearer: { tokenRef: { name: keycloak-admin-token, namespace: krateo-system, key: token } } } }
+---
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakGroupConfiguration
+metadata: { name: keycloak-admin, namespace: krateo-system }
+spec: { authentication: { bearer: { tokenRef: { name: keycloak-admin-token, namespace: krateo-system, key: token } } } }
+---
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakIdentityProviderConfiguration
+metadata: { name: keycloak-admin, namespace: krateo-system }
+spec: { authentication: { bearer: { tokenRef: { name: keycloak-admin-token, namespace: krateo-system, key: token } } } }
+---
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakIdentityProviderMapperConfiguration
+metadata: { name: keycloak-admin, namespace: krateo-system }
+spec: { authentication: { bearer: { tokenRef: { name: keycloak-admin-token, namespace: krateo-system, key: token } } } }

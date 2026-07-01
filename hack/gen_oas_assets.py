@@ -101,13 +101,19 @@ SCHEMAS = {
     "identityprovider": ("IdentityProviderRepresentation", {
         "alias": prop("string", "IdP alias. Immutable natural key."),
         "displayName": prop("string"),
-        "providerId": prop("string", "e.g. oidc, keycloak-oidc, saml"),
+        "providerId": prop("string", "e.g. oidc, keycloak-oidc, saml, github"),
         "enabled": prop("boolean"),
         "trustEmail": prop("boolean"),
         "storeToken": prop("boolean"),
         "linkOnly": prop("boolean"),
         "hideOnLogin": prop("boolean"),
         "firstBrokerLoginFlowAlias": prop("string"),
+        "config": STRMAP,
+    }),
+    "idpmapper": ("IdentityProviderMapperRepresentation", {
+        "name": prop("string", "Mapper name. Natural key (findby)."),
+        "identityProviderAlias": prop("string", "Parent IdP alias; must equal the {alias} path param."),
+        "identityProviderMapper": prop("string", "e.g. hardcoded-group-idp-mapper, oidc-username-idp-mapper"),
         "config": STRMAP,
     }),
 }
@@ -131,11 +137,13 @@ EXTRA_SCHEMAS = {
 
 # requiredfields per resource (the natural key)
 REQUIRED = {"realm": ["realm"], "client": ["clientId"], "protocolmapper": ["name"],
-            "clientscope": ["name"], "group": ["name"], "identityprovider": ["alias"]}
+            "clientscope": ["name"], "group": ["name"], "identityprovider": ["alias"],
+            "idpmapper": ["name"]}
 
 # read-only fields surfaced in status (server-generated)
 READONLY = {"realm": "id", "client": "id", "protocolmapper": "id",
-            "clientscope": "id", "group": "id", "identityprovider": "internalId"}
+            "clientscope": "id", "group": "id", "identityprovider": "internalId",
+            "idpmapper": "id"}
 
 # (collection_path, item_path) — item uses {id} for uuid resources, natural key otherwise
 PATHS = {
@@ -147,11 +155,14 @@ PATHS = {
     "group":            ("/admin/realms/{realm}/groups", "/admin/realms/{realm}/groups/{id}"),
     "identityprovider": ("/admin/realms/{realm}/identity-provider/instances",
                          "/admin/realms/{realm}/identity-provider/instances/{alias}"),
+    "idpmapper":        ("/admin/realms/{realm}/identity-provider/instances/{alias}/mappers",
+                         "/admin/realms/{realm}/identity-provider/instances/{alias}/mappers/{id}"),
 }
 
 TITLES = {
     "realm": "Realm", "client": "Client", "protocolmapper": "Protocol Mapper",
     "clientscope": "Client Scope", "group": "Group", "identityprovider": "Identity Provider",
+    "idpmapper": "Identity Provider Mapper",
 }
 
 def path_params(path):

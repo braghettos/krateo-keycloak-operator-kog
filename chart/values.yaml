@@ -60,6 +60,9 @@ restDefinitions:
   identityprovider:
     enabled: true
     kind: KeycloakIdentityProvider
+  idpmapper:
+    enabled: true
+    kind: KeycloakIdentityProviderMapper
 
 # Kubernetes API group the generated CRDs register under. GVK = <group>/v1alpha1.
 resourceGroup: keycloak.ogen.krateo.io

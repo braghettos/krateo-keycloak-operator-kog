@@ -1,0 +1,52 @@
+{{- if .Values.restDefinitions.idpmapper.enabled }}
+apiVersion: ogen.krateo.io/v1alpha1
+kind: RestDefinition
+metadata:
+  name: {{ .Release.Name }}-idpmapper
+  labels:
+    {{- include "keycloak-config-kog.labels" . | nindent 4 }}
+  {{- if .Values.verbose }}
+  annotations:
+    krateo.io/connector-verbose: "true"
+  {{- end }}
+spec:
+  oasPath: configmap://{{ .Release.Namespace }}/{{ .Release.Name }}-idpmapper/idpmapper.yaml
+  resourceGroup: {{ .Values.resourceGroup }}
+  resource:
+    kind: {{ .Values.restDefinitions.idpmapper.kind }}
+    # Mapper on an identity-provider instance (e.g. GitHub team/hardcoded-group
+    # → Keycloak group). `name` natural key; UUID {id} resolved via findby +
+    # excluded from spec. Parent path params {realm} and {alias} (the IdP alias)
+    # auto-surface as spec fields.
+    identifiers:
+      - name
+    additionalStatusFields:
+      - id
+    excludedSpecFields:
+      - id
+    verbsDescription:
+      - action: findby
+        method: GET
+        path: /admin/realms/{realm}/identity-provider/instances/{alias}/mappers
+      - action: create
+        method: POST
+        path: /admin/realms/{realm}/identity-provider/instances/{alias}/mappers
+      - action: get
+        method: GET
+        path: /admin/realms/{realm}/identity-provider/instances/{alias}/mappers/{id}
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
+      - action: update
+        method: PUT
+        path: /admin/realms/{realm}/identity-provider/instances/{alias}/mappers/{id}
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
+      - action: delete
+        method: DELETE
+        path: /admin/realms/{realm}/identity-provider/instances/{alias}/mappers/{id}
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
+{{- end }}

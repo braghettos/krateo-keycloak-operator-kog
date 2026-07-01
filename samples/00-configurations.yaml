@@ -67,3 +67,13 @@ spec:
   authentication:
     bearer:
       tokenRef: { name: keycloak-admin-token, namespace: krateo-system, key: token }
+---
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakIdentityProviderMapperConfiguration
+metadata:
+  name: keycloak-admin
+  namespace: krateo-system
+spec:
+  authentication:
+    bearer:
+      tokenRef: { name: keycloak-admin-token, namespace: krateo-system, key: token }

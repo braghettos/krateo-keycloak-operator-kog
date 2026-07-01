@@ -1,10 +1,10 @@
 openapi: 3.0.3
 info:
-  title: Keycloak Admin API - Identity Provider (KOG subset)
+  title: Keycloak Admin API - Identity Provider Mapper (KOG subset)
   version: v1
   description: Hand-curated OpenAPI 3.0 subset of the Keycloak Admin REST API for the Identity Provider
-    resource, sufficient to manage it through the Krateo Operator Generator (KOG). Declares the http/bearer
-    security scheme that the upstream Keycloak OAS omits.
+    Mapper resource, sufficient to manage it through the Krateo Operator Generator (KOG). Declares the
+    http/bearer security scheme that the upstream Keycloak OAS omits.
 servers:
 - url: '{{ .Values.keycloak.baseUrl }}'
   description: Keycloak base URL (no trailing slash).
@@ -17,48 +17,42 @@ components:
       scheme: bearer
       description: Keycloak admin access token (OAuth2 Bearer).
   schemas:
-    IdentityProviderRepresentation:
+    IdentityProviderMapperRepresentation:
       type: object
       required:
-      - alias
+      - name
       properties:
-        alias:
+        name:
           type: string
-          description: IdP alias. Immutable natural key.
-        displayName:
+          description: Mapper name. Natural key (findby).
+        identityProviderAlias:
           type: string
-        providerId:
+          description: Parent IdP alias; must equal the {alias} path param.
+        identityProviderMapper:
           type: string
-          description: e.g. oidc, keycloak-oidc, saml, github
-        enabled:
-          type: boolean
-        trustEmail:
-          type: boolean
-        storeToken:
-          type: boolean
-        linkOnly:
-          type: boolean
-        hideOnLogin:
-          type: boolean
-        firstBrokerLoginFlowAlias:
-          type: string
+          description: e.g. hardcoded-group-idp-mapper, oidc-username-idp-mapper
         config:
           type: object
           additionalProperties:
             type: string
-        internalId:
+        id:
           type: string
           description: Server-generated identifier (read-only).
           readOnly: true
 paths:
-  /admin/realms/{realm}/identity-provider/instances:
+  /admin/realms/{realm}/identity-provider/instances/{alias}/mappers:
     post:
-      operationId: createIdentityprovider
-      summary: Create Identity Provider
+      operationId: createIdpmapper
+      summary: Create Identity Provider Mapper
       tags:
-      - identityprovider
+      - idpmapper
       parameters:
       - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: alias
         in: path
         required: true
         schema:
@@ -68,17 +62,22 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/IdentityProviderRepresentation'
+              $ref: '#/components/schemas/IdentityProviderMapperRepresentation'
       responses:
         '201':
           description: Created. Identifier returned via Location header.
     get:
-      operationId: listIdentityprovider
-      summary: List/find Identity Provider
+      operationId: listIdpmapper
+      summary: List/find Identity Provider Mapper
       tags:
-      - identityprovider
+      - idpmapper
       parameters:
       - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: alias
         in: path
         required: true
         schema:
@@ -91,13 +90,13 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/IdentityProviderRepresentation'
-  /admin/realms/{realm}/identity-provider/instances/{alias}:
+                  $ref: '#/components/schemas/IdentityProviderMapperRepresentation'
+  /admin/realms/{realm}/identity-provider/instances/{alias}/mappers/{id}:
     get:
-      operationId: getIdentityprovider
-      summary: Get Identity Provider
+      operationId: getIdpmapper
+      summary: Get Identity Provider Mapper
       tags:
-      - identityprovider
+      - idpmapper
       parameters:
       - name: realm
         in: path
@@ -105,6 +104,11 @@ paths:
         schema:
           type: string
       - name: alias
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
         in: path
         required: true
         schema:
@@ -115,12 +119,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/IdentityProviderRepresentation'
+                $ref: '#/components/schemas/IdentityProviderMapperRepresentation'
     put:
-      operationId: updateIdentityprovider
-      summary: Update Identity Provider
+      operationId: updateIdpmapper
+      summary: Update Identity Provider Mapper
       tags:
-      - identityprovider
+      - idpmapper
       parameters:
       - name: realm
         in: path
@@ -128,6 +132,11 @@ paths:
         schema:
           type: string
       - name: alias
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
         in: path
         required: true
         schema:
@@ -137,15 +146,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/IdentityProviderRepresentation'
+              $ref: '#/components/schemas/IdentityProviderMapperRepresentation'
       responses:
         '204':
           description: Updated.
     delete:
-      operationId: deleteIdentityprovider
-      summary: Delete Identity Provider
+      operationId: deleteIdpmapper
+      summary: Delete Identity Provider Mapper
       tags:
-      - identityprovider
+      - idpmapper
       parameters:
       - name: realm
         in: path
@@ -153,6 +162,11 @@ paths:
         schema:
           type: string
       - name: alias
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
         in: path
         required: true
         schema:

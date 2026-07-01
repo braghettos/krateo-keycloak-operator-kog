@@ -20,7 +20,8 @@ The **lifecycle** half (installing Keycloak itself) is the sibling
 | `KeycloakProtocolMapper` | protocol mapper on a client-scope / pre-existing client | `name` → UUID via `findby`; parent `clientUuid` |
 | `KeycloakClientScope` | client scope | `name` → UUID via `findby` |
 | `KeycloakGroup` | group | `name` → UUID via `findby` |
-| `KeycloakIdentityProvider` | IdP instance | natural key `alias` (direct) |
+| `KeycloakIdentityProvider` | IdP instance (e.g. GitHub broker) | natural key `alias` (direct) |
+| `KeycloakIdentityProviderMapper` | mapper on an IdP instance (e.g. GitHub → group) | `name` → UUID via `findby`; parent `alias` |
 
 > **Mappers on a client you manage here** are best declared **inline** on the
 > `KeycloakClient` via its `protocolMappers` array — fully declarative, no
