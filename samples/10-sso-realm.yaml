@@ -35,7 +35,9 @@ metadata:
   name: keystone
   namespace: krateo-system
 spec:
-  configurationRef: { name: keycloak-admin, namespace: krateo-system }
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
   realm: krateo
   clientId: keystone
   name: "OpenStack Keystone (Horizon WebSSO)"
@@ -71,7 +73,9 @@ metadata:
   name: krateo-authn
   namespace: krateo-system
 spec:
-  configurationRef: { name: keycloak-admin, namespace: krateo-system }
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
   realm: krateo
   clientId: krateo-authn
   name: "Krateo AuthN"
@@ -98,9 +102,13 @@ metadata:
   name: os-project-demo
   namespace: krateo-system
 spec:
-  configurationRef: { name: keycloak-admin, namespace: krateo-system }
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
   realm: krateo
   name: os-project-demo
   attributes:
-    openstack-project: ["demo"]
-    openstack-role: ["member"]
+    openstack-project:
+      - demo
+    openstack-role:
+      - member

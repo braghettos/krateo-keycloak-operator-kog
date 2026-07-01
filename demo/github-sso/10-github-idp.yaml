@@ -12,9 +12,13 @@
 # The GitHub broker (Keycloak's built-in social provider — GitHub is OAuth2).
 apiVersion: keycloak.ogen.krateo.io/v1alpha1
 kind: KeycloakIdentityProvider
-metadata: { name: github, namespace: krateo-system }
+metadata:
+  name: github
+  namespace: krateo-system
 spec:
-  configurationRef: { name: keycloak-admin, namespace: krateo-system }
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
   realm: krateo
   alias: github
   providerId: github
@@ -32,14 +36,20 @@ spec:
 # Keystone mapping reads to assign a project/role (see ../sso-end-to-end).
 apiVersion: keycloak.ogen.krateo.io/v1alpha1
 kind: KeycloakGroup
-metadata: { name: os-project-demo, namespace: krateo-system }
+metadata:
+  name: os-project-demo
+  namespace: krateo-system
 spec:
-  configurationRef: { name: keycloak-admin, namespace: krateo-system }
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
   realm: krateo
   name: os-project-demo
   attributes:
-    openstack-project: ["demo"]
-    openstack-role: ["member"]
+    openstack-project:
+      - demo
+    openstack-role:
+      - member
 ---
 # HOP-1 authorization — the new KeycloakIdentityProviderMapper resource.
 # `hardcoded-group-idp-mapper` puts EVERY GitHub-brokered user into
@@ -47,9 +57,13 @@ spec:
 # declarative; no console clicks.
 apiVersion: keycloak.ogen.krateo.io/v1alpha1
 kind: KeycloakIdentityProviderMapper
-metadata: { name: github-default-group, namespace: krateo-system }
+metadata:
+  name: github-default-group
+  namespace: krateo-system
 spec:
-  configurationRef: { name: keycloak-admin, namespace: krateo-system }
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
   realm: krateo
   alias: github                       # parent IdP (the github broker above)
   name: github-default-group

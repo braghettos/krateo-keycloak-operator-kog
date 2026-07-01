@@ -5,25 +5,65 @@
 ---
 apiVersion: keycloak.ogen.krateo.io/v1alpha1
 kind: KeycloakRealmConfiguration
-metadata: { name: keycloak-admin, namespace: krateo-system }
-spec: { authentication: { bearer: { tokenRef: { name: keycloak-admin-token, namespace: krateo-system, key: token } } } }
+metadata:
+  name: keycloak-admin
+  namespace: krateo-system
+spec:
+  authentication:
+    bearer:
+      tokenRef:
+        name: keycloak-admin-token
+        namespace: krateo-system
+        key: token
 ---
 apiVersion: keycloak.ogen.krateo.io/v1alpha1
 kind: KeycloakClientConfiguration
-metadata: { name: keycloak-admin, namespace: krateo-system }
-spec: { authentication: { bearer: { tokenRef: { name: keycloak-admin-token, namespace: krateo-system, key: token } } } }
+metadata:
+  name: keycloak-admin
+  namespace: krateo-system
+spec:
+  authentication:
+    bearer:
+      tokenRef:
+        name: keycloak-admin-token
+        namespace: krateo-system
+        key: token
 ---
 apiVersion: keycloak.ogen.krateo.io/v1alpha1
 kind: KeycloakGroupConfiguration
-metadata: { name: keycloak-admin, namespace: krateo-system }
-spec: { authentication: { bearer: { tokenRef: { name: keycloak-admin-token, namespace: krateo-system, key: token } } } }
+metadata:
+  name: keycloak-admin
+  namespace: krateo-system
+spec:
+  authentication:
+    bearer:
+      tokenRef:
+        name: keycloak-admin-token
+        namespace: krateo-system
+        key: token
 ---
 apiVersion: keycloak.ogen.krateo.io/v1alpha1
 kind: KeycloakIdentityProviderConfiguration
-metadata: { name: keycloak-admin, namespace: krateo-system }
-spec: { authentication: { bearer: { tokenRef: { name: keycloak-admin-token, namespace: krateo-system, key: token } } } }
+metadata:
+  name: keycloak-admin
+  namespace: krateo-system
+spec:
+  authentication:
+    bearer:
+      tokenRef:
+        name: keycloak-admin-token
+        namespace: krateo-system
+        key: token
 ---
 apiVersion: keycloak.ogen.krateo.io/v1alpha1
 kind: KeycloakIdentityProviderMapperConfiguration
-metadata: { name: keycloak-admin, namespace: krateo-system }
-spec: { authentication: { bearer: { tokenRef: { name: keycloak-admin-token, namespace: krateo-system, key: token } } } }
+metadata:
+  name: keycloak-admin
+  namespace: krateo-system
+spec:
+  authentication:
+    bearer:
+      tokenRef:
+        name: keycloak-admin-token
+        namespace: krateo-system
+        key: token
