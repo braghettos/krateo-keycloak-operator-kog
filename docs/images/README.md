@@ -15,7 +15,5 @@ auto-provisioned into the `demo` project). Referenced by
 shows it **only on first login** and remembers the grant thereafter, so it can't be
 re-captured without revoking the app authorization.
 
-> Rendering note: these were exported via an in-page DOM render (the sandbox blocks
-> true-screenshot file export), so icon-font glyphs and the OpenStack logo may appear
-> as small empty boxes. All text — including the `keycloak • demo` scope and the
-> `braghettos` user — is faithful.
+These are true, pixel-perfect captures of the live browser (`02` shows the Keycloak
+page forced with `prompt=login`, hence the pre-filled user and re-authenticate note).
