@@ -87,7 +87,11 @@ renders with no login prompt, scoped to the project your Keycloak group grants.
   KOG side) that everything else consumes.
 - **Authored, not yet run live**: LINKs 2–5 require a running OpenStack + Krateo
   portal (not deployed on the demo kind cluster). Tune before/while running:
-  - the Keystone image must contain `mod_auth_openidc`;
+  - the Keystone image must contain `mod_auth_openidc` — **CONFIRMED MISSING**
+    from the blueprint's default `quay.io/airshipit/keystone:2025.1-ubuntu_jammy`
+    (no module, no `libapache2-mod-auth-openidc` package). Link 3 requires a
+    custom Keystone image that layers in the module, or an init step that
+    installs it, before OIDC federation will work;
   - the mapping `remote` claim names (`OIDC-groups`, …) must match what
     `mod_auth_openidc` passes (governed by `OIDCClaimPrefix`);
   - `remote_id_attribute` (`HTTP_OIDC_ISS`) must equal the realm token issuer;
