@@ -1,0 +1,39 @@
+apiVersion: apiserver.config.k8s.io/v1beta1
+kind: AuthenticationConfiguration
+jwt:
+  - issuer:
+      url: https://keycloak:8443/realms/cmp
+      audiences:
+        - kubernetes
+      certificateAuthority: |
+        -----BEGIN CERTIFICATE-----
+        MIIDFTCCAf2gAwIBAgIUEJqzF5bc4s3ZYsEBEF3cMqR4ltowDQYJKoZIhvcNAQEL
+        BQAwGjEYMBYGA1UEAwwPY21wLW1mYS1kZW1vLWNhMB4XDTI2MDcwMjA2MzkwN1oX
+        DTI3MDcwMjA2MzkwN1owGjEYMBYGA1UEAwwPY21wLW1mYS1kZW1vLWNhMIIBIjAN
+        BgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAneXEFalWP1NWDl4v8oZtOdKMKMPP
+        2c+VejTZ4sL1HfpaQ0UNZCgBpzGkrBiLUcsnZf25k8gEwDpzHzePI2jnm7jaB9tG
+        dVyaJkOOJ8Hcr4a8kdZMusgJr+t6s8SvsgZbK+Lu7uMmixEBly0/nfncBH5llzx5
+        g2eF0OWEuOIY0VuRHSprUMamTuOppCJVz2lqcf160jBqujx2/xwmTQxZOmZwTQYY
+        Db7mC6WB6BNl01q94jIPmpKJ0IFKC6mSuu7HH14tJY021DSyGyxi+JDoCUpuHztF
+        Js3/VLW5U4S8ZJLteKTBb+9gIwAJk2FmdxOZyDEPqB6f3YMrPfxZu3KjVQIDAQAB
+        o1MwUTAdBgNVHQ4EFgQUFzfFaXZx9gvqcofa8s5SVVWWIkMwHwYDVR0jBBgwFoAU
+        FzfFaXZx9gvqcofa8s5SVVWWIkMwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0B
+        AQsFAAOCAQEAO9nyIXAmztiYvAOMsXeml/lD3ZgpxuTwNx0FFiy9+T07tHIiF7Ce
+        bsYeSPPjlYCK+FlhYEOE9zSNCx0pYTkEKHkhekvm79CJoQh0DRFkzDRVegfLW/Yt
+        Md7y6MXvieZKKQrO09dfX66ZRsWnsrue5snQhzU7JErvL0hLqS4cwf87oFHlk5Pn
+        P4ENzJeZuX2JBB+dOVpVMWjwPkfffzbz8jL1thttXSS228P/prGVhgwVm38Cdjpd
+        ZtpGMf9IMoyx4MHw5QqumXRyJSkwn3yHMoJv0QKBaDblcMaIu2lrr6JLdm+9LuC2
+        dsbmCBhGLJ1o4YZxjdOypqUPB/ykTvdPow==
+        -----END CERTIFICATE-----
+    claimMappings:
+      username:
+        claim: preferred_username
+        prefix: "oidc:"
+      groups:
+        claim: groups
+        prefix: "oidc:"
+      extra:
+        - key: "cmp.krateo.io/acr"
+          valueExpression: "has(claims.acr) ? claims.acr : 'none'"
+        - key: "cmp.krateo.io/auth_time"
+          valueExpression: "has(claims.auth_time) ? string(int(claims.auth_time)) : '0'"

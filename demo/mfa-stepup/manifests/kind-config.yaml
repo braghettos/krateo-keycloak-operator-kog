@@ -1,0 +1,21 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: cmp-mfa
+nodes:
+  - role: control-plane
+    extraMounts:
+      - hostPath: /Users/diegobraga/krateo/keycloak/demo-mfa-stepup/manifests/auth-config.yaml
+        containerPath: /etc/kubernetes/auth/auth-config.yaml
+        readOnly: true
+    kubeadmConfigPatches:
+      - |
+        kind: ClusterConfiguration
+        apiServer:
+          extraArgs:
+            authentication-config: /etc/kubernetes/auth/auth-config.yaml
+          extraVolumes:
+            - name: auth-config
+              hostPath: /etc/kubernetes/auth
+              mountPath: /etc/kubernetes/auth
+              readOnly: true
+              pathType: DirectoryOrCreate

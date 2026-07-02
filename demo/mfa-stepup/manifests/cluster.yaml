@@ -1,0 +1,119 @@
+# --- Minimal CRDs for the critical CMP kinds (federation + roles) ---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: identityfederationproviders.identity.openstack.krateo.io
+spec:
+  group: identity.openstack.krateo.io
+  scope: Namespaced
+  names:
+    plural: identityfederationproviders
+    singular: identityfederationprovider
+    kind: IdentityFederationProvider
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          x-kubernetes-preserve-unknown-fields: true
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: identitymappings.identity.openstack.krateo.io
+spec:
+  group: identity.openstack.krateo.io
+  scope: Namespaced
+  names:
+    plural: identitymappings
+    singular: identitymapping
+    kind: IdentityMapping
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          x-kubernetes-preserve-unknown-fields: true
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: identityroleassignments.identity.openstack.krateo.io
+spec:
+  group: identity.openstack.krateo.io
+  scope: Namespaced
+  names:
+    plural: identityroleassignments
+    singular: identityroleassignment
+    kind: IdentityRoleAssignment
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          x-kubernetes-preserve-unknown-fields: true
+---
+# --- RBAC: the Keycloak group cmp-admins may manage identity CRs ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cmp-identity-admin
+rules:
+  - apiGroups: ["identity.openstack.krateo.io"]
+    resources: ["*"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cmp-identity-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cmp-identity-admin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: "oidc:cmp-admins"
+---
+# --- The MFA step-up gate: deny critical CMP ops unless acr=2 (MFA) ---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: require-mfa-stepup
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["identity.openstack.krateo.io"]
+        apiVersions: ["*"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources:
+          - identityfederationproviders
+          - identitymappings
+          - identityfederationprotocols
+          - identityroles
+          - identityroleassignments
+  matchConditions:
+    - name: only-oidc-users
+      expression: "has(request.userInfo.username) && request.userInfo.username.startsWith('oidc:')"
+  variables:
+    - name: acr
+      expression: "('cmp.krateo.io/acr' in request.userInfo.extra) ? request.userInfo.extra['cmp.krateo.io/acr'][0] : 'none'"
+  validations:
+    - expression: "variables.acr == '2'"
+      messageExpression: "'CMP critical operation on ' + request.resource.resource + ' requires MFA step-up (acr=2). Your token has acr=' + variables.acr + '. Re-authenticate with step-up (acr_values=2) and retry.'"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: require-mfa-stepup
+spec:
+  policyName: require-mfa-stepup
+  validationActions: ["Deny"]

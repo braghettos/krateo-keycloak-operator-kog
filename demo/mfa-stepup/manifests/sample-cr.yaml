@@ -1,0 +1,9 @@
+apiVersion: identity.openstack.krateo.io/v1alpha1
+kind: IdentityFederationProvider
+metadata:
+  name: keycloak
+  namespace: default
+spec:
+  id: keycloak
+  identity_provider:
+    enabled: true
