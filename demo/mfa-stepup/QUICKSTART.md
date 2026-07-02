@@ -54,12 +54,17 @@ kind: AuthenticationConfiguration
 jwt:
   - issuer:
       url: https://keycloak:8443/realms/cmp
-      audiences: [kubernetes]
+      audiences:
+        - kubernetes
       certificateAuthority: |
 $CA_INDENT
     claimMappings:
-      username: { claim: preferred_username, prefix: "oidc:" }
-      groups:   { claim: groups, prefix: "oidc:" }
+      username:
+        claim: preferred_username
+        prefix: "oidc:"
+      groups:
+        claim: groups
+        prefix: "oidc:"
       extra:
         - key: "cmp.krateo.io/acr"
           valueExpression: "has(claims.acr) ? claims.acr : 'none'"
@@ -68,8 +73,8 @@ $CA_INDENT
 EOF
 ```
 
-> The two `{ ... }` above are inside a CEL/JSON context, not YAML data — the CRs later
-> use block style. (Keep JSON out of your *resource* YAML.)
+> The `valueExpression` values are CEL, evaluated by the apiserver — everything else is
+> plain block YAML.
 
 ## 3. kind cluster wired to that config
 
@@ -170,9 +175,14 @@ spec:
   failurePolicy: Fail
   matchConstraints:
     resourceRules:
-      - apiGroups: ["identity.openstack.krateo.io"]
-        apiVersions: ["*"]
-        operations: ["CREATE", "UPDATE", "DELETE"]
+      - apiGroups:
+          - identity.openstack.krateo.io
+        apiVersions:
+          - "*"
+        operations:
+          - CREATE
+          - UPDATE
+          - DELETE
         resources:
           - identityfederationproviders
           - identitymappings

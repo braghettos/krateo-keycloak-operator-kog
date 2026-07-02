@@ -65,9 +65,12 @@ kind: ClusterRole
 metadata:
   name: cmp-identity-admin
 rules:
-  - apiGroups: ["identity.openstack.krateo.io"]
-    resources: ["*"]
-    verbs: ["*"]
+  - apiGroups:
+      - identity.openstack.krateo.io
+    resources:
+      - "*"
+    verbs:
+      - "*"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -91,9 +94,14 @@ spec:
   failurePolicy: Fail
   matchConstraints:
     resourceRules:
-      - apiGroups: ["identity.openstack.krateo.io"]
-        apiVersions: ["*"]
-        operations: ["CREATE", "UPDATE", "DELETE"]
+      - apiGroups:
+          - identity.openstack.krateo.io
+        apiVersions:
+          - "*"
+        operations:
+          - CREATE
+          - UPDATE
+          - DELETE
         resources:
           - identityfederationproviders
           - identitymappings
@@ -116,4 +124,5 @@ metadata:
   name: require-mfa-stepup
 spec:
   policyName: require-mfa-stepup
-  validationActions: ["Deny"]
+  validationActions:
+    - Deny

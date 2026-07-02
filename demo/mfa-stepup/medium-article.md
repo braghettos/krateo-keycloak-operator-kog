@@ -68,8 +68,12 @@ Kubernetes **Structured Authentication Configuration** (GA 1.30+) validates the 
 
 ```yaml
 claimMappings:
-  username: { claim: preferred_username, prefix: "oidc:" }
-  groups:   { claim: groups, prefix: "oidc:" }
+  username:
+    claim: preferred_username
+    prefix: "oidc:"
+  groups:
+    claim: groups
+    prefix: "oidc:"
   extra:
     - key: "cmp.krateo.io/acr"
       valueExpression: "has(claims.acr) ? claims.acr : 'none'"
@@ -98,10 +102,20 @@ metadata:
 spec:
   matchConstraints:
     resourceRules:
-      - apiGroups: ["identity.openstack.krateo.io"]
-        operations: ["CREATE", "UPDATE", "DELETE"]
-        apiVersions: ["*"]
-        resources: [identityfederationproviders, identitymappings, identityfederationprotocols, identityroles, identityroleassignments]
+      - apiGroups:
+          - identity.openstack.krateo.io
+        operations:
+          - CREATE
+          - UPDATE
+          - DELETE
+        apiVersions:
+          - "*"
+        resources:
+          - identityfederationproviders
+          - identitymappings
+          - identityfederationprotocols
+          - identityroles
+          - identityroleassignments
   matchConditions:
     - name: only-oidc-users
       expression: "has(request.userInfo.username) && request.userInfo.username.startsWith('oidc:')"
@@ -152,7 +166,7 @@ No operator, no webhook server, no second factor baked into Kubernetes. Just an 
 
 ---
 
-*The full, runnable prototype — certs, apiserver auth config, the Keycloak LoA flow scripts, the CRDs + RBAC + policy, and a scripted step-up token minter — is in the [demo-mfa-stepup](https://github.com/braghettos/openstack-keystone-operator-kog) folder. Built with [Keycloak](https://www.keycloak.org/), Kubernetes [Structured Authentication](https://kubernetes.io/docs/reference/access-authn-authz/authentication/) + [ValidatingAdmissionPolicy](https://kubernetes.io/docs/reference/access-authn-authz/validating-admission-policy/), and [Krateo PlatformOps](https://krateo.io).*
+*The full, runnable prototype — certs, apiserver auth config, the Keycloak LoA flow scripts, the CRDs + RBAC + policy, and a scripted step-up token minter — is in the [demo/mfa-stepup](https://github.com/braghettos/krateo-keycloak-operator-kog/tree/main/demo/mfa-stepup) folder. Built with [Keycloak](https://www.keycloak.org/), Kubernetes [Structured Authentication](https://kubernetes.io/docs/reference/access-authn-authz/authentication/) + [ValidatingAdmissionPolicy](https://kubernetes.io/docs/reference/access-authn-authz/validating-admission-policy/), and [Krateo PlatformOps](https://krateo.io).*
 
 <!-- ─────────────────────────────────────────────────────────────────────────
 PUBLISHING CHECKLIST (editor's notes — delete before/after pasting into Medium)
