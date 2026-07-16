@@ -1,0 +1,151 @@
+openapi: 3.0.3
+info:
+  title: Keycloak Admin API - Authentication Flow (KOG subset)
+  version: v1
+  description: Hand-curated OpenAPI 3.0 subset of the Keycloak Admin REST API for the Authentication Flow
+    resource, sufficient to manage it through the Krateo Operator Generator (KOG). Declares the http/bearer
+    security scheme that the upstream Keycloak OAS omits.
+servers:
+- url: '{{ .Values.keycloak.baseUrl }}'
+  description: Keycloak base URL (no trailing slash).
+security:
+- bearer: []
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: Keycloak admin access token (OAuth2 Bearer).
+  schemas:
+    AuthenticationFlowRepresentation:
+      type: object
+      required:
+      - alias
+      properties:
+        alias:
+          type: string
+          description: Flow alias. Natural key (findby).
+        description:
+          type: string
+        providerId:
+          type: string
+          description: Flow type; top-level flows use basic-flow.
+        topLevel:
+          type: boolean
+          description: True for a realm-bindable top-level flow.
+        builtIn:
+          type: boolean
+        id:
+          type: string
+          description: Server-generated identifier (read-only).
+          readOnly: true
+paths:
+  /admin/realms/{realm}/authentication/flows:
+    post:
+      operationId: createAuthenticationflow
+      summary: Create Authentication Flow
+      tags:
+      - authenticationflow
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthenticationFlowRepresentation'
+      responses:
+        '201':
+          description: Created. Identifier returned via Location header.
+    get:
+      operationId: listAuthenticationflow
+      summary: List/find Authentication Flow
+      tags:
+      - authenticationflow
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuthenticationFlowRepresentation'
+  /admin/realms/{realm}/authentication/flows/{id}:
+    get:
+      operationId: getAuthenticationflow
+      summary: Get Authentication Flow
+      tags:
+      - authenticationflow
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticationFlowRepresentation'
+    put:
+      operationId: updateAuthenticationflow
+      summary: Update Authentication Flow
+      tags:
+      - authenticationflow
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthenticationFlowRepresentation'
+      responses:
+        '204':
+          description: Updated.
+    delete:
+      operationId: deleteAuthenticationflow
+      summary: Delete Authentication Flow
+      tags:
+      - authenticationflow
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Deleted.

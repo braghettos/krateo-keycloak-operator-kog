@@ -1,0 +1,123 @@
+# Authentication & MFA configuration expressed as Keycloak-config-KOG custom
+# resources. Everything here is generic Keycloak-as-code:
+#   - a realm carrying OTP (TOTP) + WebAuthn policy
+#   - the CONFIGURE_TOTP and webauthn-register required actions, enabled as CRs
+#   - a top-level browser authentication flow (container)
+#   - a client that maps Authentication Context Class References (acr) to
+#     Levels of Authentication (LoA), so issued tokens carry the acr claim
+#
+# All resources reference the `keycloak-admin` Configuration (see
+# 00-configurations.yaml). Replace <APP_HOST> with your real ingress hostname.
+---
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakRealm
+metadata:
+  name: mfa-demo
+  namespace: krateo-system
+spec:
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
+  realm: mfa-demo
+  enabled: true
+  displayName: "MFA demo realm"
+  sslRequired: external
+  # --- OTP (TOTP) policy ---
+  otpPolicyType: totp
+  otpPolicyAlgorithm: HmacSHA1
+  otpPolicyDigits: 6
+  otpPolicyPeriod: 30
+  otpPolicyLookAheadWindow: 1
+  otpPolicyCodeReusable: false
+  # --- WebAuthn (two-factor) policy ---
+  webAuthnPolicyRpEntityName: "MFA demo"
+  webAuthnPolicySignatureAlgorithms:
+    - ES256
+    - RS256
+  webAuthnPolicyAttestationConveyancePreference: none
+  webAuthnPolicyRequireResidentKey: "not specified"
+  webAuthnPolicyUserVerificationRequirement: preferred
+---
+# Enable the TOTP-registration required action (built-in; managed as a CR).
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakRequiredAction
+metadata:
+  name: configure-totp
+  namespace: krateo-system
+spec:
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
+  realm: mfa-demo
+  alias: CONFIGURE_TOTP
+  name: "Configure OTP"
+  providerId: CONFIGURE_TOTP
+  enabled: true
+  defaultAction: false
+  priority: 10
+---
+# Enable the WebAuthn-registration required action.
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakRequiredAction
+metadata:
+  name: webauthn-register
+  namespace: krateo-system
+spec:
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
+  realm: mfa-demo
+  alias: webauthn-register
+  name: "Webauthn Register"
+  providerId: webauthn-register
+  enabled: true
+  defaultAction: false
+  priority: 20
+---
+# Top-level browser authentication flow (container). Executions/subflows inside
+# the flow are configured separately — see docs/ARCHITECTURE.md ("Authentication
+# flows & executions").
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakAuthenticationFlow
+metadata:
+  name: browser-mfa
+  namespace: krateo-system
+spec:
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
+  realm: mfa-demo
+  alias: browser-mfa
+  description: "Browser flow with a conditional second factor"
+  providerId: basic-flow
+  topLevel: true
+  builtIn: false
+---
+# A client that advertises an ACR -> LoA map, so tokens it issues carry the acr
+# claim per level. ACR mapping is a standard Keycloak client attribute
+# (acr.loa.map); default.acr.values sets the ACR requested when the client does
+# not ask for a specific level.
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakClient
+metadata:
+  name: acr-app
+  namespace: krateo-system
+spec:
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
+  realm: mfa-demo
+  clientId: acr-app
+  name: "ACR-aware application"
+  enabled: true
+  protocol: openid-connect
+  publicClient: false
+  standardFlowEnabled: true
+  clientAuthenticatorType: client-secret
+  redirectUris:
+    - "https://<APP_HOST>/*"
+  webOrigins:
+    - "https://<APP_HOST>"
+  attributes:
+    "acr.loa.map": '{"silver":1,"gold":2}'
+    "default.acr.values": '["silver"]'

@@ -1,0 +1,155 @@
+openapi: 3.0.3
+info:
+  title: Keycloak Admin API - Required Action (KOG subset)
+  version: v1
+  description: Hand-curated OpenAPI 3.0 subset of the Keycloak Admin REST API for the Required Action
+    resource, sufficient to manage it through the Krateo Operator Generator (KOG). Declares the http/bearer
+    security scheme that the upstream Keycloak OAS omits.
+servers:
+- url: '{{ .Values.keycloak.baseUrl }}'
+  description: Keycloak base URL (no trailing slash).
+security:
+- bearer: []
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: Keycloak admin access token (OAuth2 Bearer).
+  schemas:
+    RequiredActionProviderRepresentation:
+      type: object
+      required:
+      - alias
+      properties:
+        alias:
+          type: string
+          description: Required-action alias, e.g. CONFIGURE_TOTP. Natural key.
+        name:
+          type: string
+          description: Human-readable name.
+        providerId:
+          type: string
+          description: Provider id backing the action.
+        enabled:
+          type: boolean
+        defaultAction:
+          type: boolean
+          description: Applied to every new user when true.
+        priority:
+          type: integer
+        config:
+          type: object
+          additionalProperties:
+            type: string
+paths:
+  /admin/realms/{realm}/authentication/register-required-action:
+    post:
+      operationId: createRequiredaction
+      summary: Create Required Action
+      tags:
+      - requiredaction
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequiredActionProviderRepresentation'
+      responses:
+        '201':
+          description: Created. Identifier returned via Location header.
+  /admin/realms/{realm}/authentication/required-actions:
+    get:
+      operationId: listRequiredaction
+      summary: List/find Required Action
+      tags:
+      - requiredaction
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RequiredActionProviderRepresentation'
+  /admin/realms/{realm}/authentication/required-actions/{alias}:
+    get:
+      operationId: getRequiredaction
+      summary: Get Required Action
+      tags:
+      - requiredaction
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: alias
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequiredActionProviderRepresentation'
+    put:
+      operationId: updateRequiredaction
+      summary: Update Required Action
+      tags:
+      - requiredaction
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: alias
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequiredActionProviderRepresentation'
+      responses:
+        '204':
+          description: Updated.
+    delete:
+      operationId: deleteRequiredaction
+      summary: Delete Required Action
+      tags:
+      - requiredaction
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: alias
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Deleted.

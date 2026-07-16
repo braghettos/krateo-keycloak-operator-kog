@@ -8,7 +8,7 @@ description: >-
   REST API. The bearer admin token is delivered/rotated into a Secret by the
   External Secrets Operator.
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "26.0"
 home: https://www.keycloak.org/
 icon: https://raw.githubusercontent.com/krateoplatformops/krateo/main/docs/media/logo.svg

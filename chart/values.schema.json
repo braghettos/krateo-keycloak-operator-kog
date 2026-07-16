@@ -235,6 +235,63 @@
               "default": "KeycloakIdentityProvider"
             }
           }
+        },
+        "idpmapper": {
+          "type": "object",
+          "title": "Identity provider mapper",
+          "description": "KeycloakIdentityProviderMapper RestDefinition.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Emit the KeycloakIdentityProviderMapper RestDefinition.",
+              "default": true
+            },
+            "kind": {
+              "type": "string",
+              "title": "Kind",
+              "description": "Kubernetes kind for the generated CRD.",
+              "default": "KeycloakIdentityProviderMapper"
+            }
+          }
+        },
+        "authenticationflow": {
+          "type": "object",
+          "title": "Authentication flow",
+          "description": "KeycloakAuthenticationFlow RestDefinition (top-level flow container).",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Emit the KeycloakAuthenticationFlow RestDefinition.",
+              "default": true
+            },
+            "kind": {
+              "type": "string",
+              "title": "Kind",
+              "description": "Kubernetes kind for the generated CRD.",
+              "default": "KeycloakAuthenticationFlow"
+            }
+          }
+        },
+        "requiredaction": {
+          "type": "object",
+          "title": "Required action",
+          "description": "KeycloakRequiredAction RestDefinition (e.g. CONFIGURE_TOTP, webauthn-register).",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Emit the KeycloakRequiredAction RestDefinition.",
+              "default": true
+            },
+            "kind": {
+              "type": "string",
+              "title": "Kind",
+              "description": "Kubernetes kind for the generated CRD.",
+              "default": "KeycloakRequiredAction"
+            }
+          }
         }
       }
     },

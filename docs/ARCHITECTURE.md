@@ -57,6 +57,44 @@ the server the blueprint stands up.
 5. **`Keycloak`-prefixed CR kinds** — avoids crdgen collisions with same-named
    lowercase body properties (the Nova `Server` vs `server` failure mode).
 
+## Authentication flows & executions (MFA / ACR)
+
+The KOG exposes the *login-configuration* surface too:
+
+- **`KeycloakRealm`** carries the **OTP** (`otpPolicy*`) and **WebAuthn**
+  (`webAuthnPolicy*`, incl. passwordless) **policy** fields, plus top-level flow
+  bindings (`browserFlow`, `directGrantFlow`).
+- **`KeycloakRequiredAction`** manages required-action providers by `alias`
+  (e.g. `CONFIGURE_TOTP`, `webauthn-register`). Base actions ship built-in, so
+  reconcile normally observes + updates their enabled/default/priority state.
+- **`KeycloakAuthenticationFlow`** manages a **top-level flow container**
+  (`alias` + metadata), addressed by natural key like the other resources.
+- **ACR → LoA** is a standard **client attribute** (`acr.loa.map`) already
+  expressible on `KeycloakClient.attributes` — no new field needed; set
+  `default.acr.values` for the client's default requested level. This is what
+  makes issued tokens carry the `acr` claim per level.
+
+**Deliberately not modelled as a plain RestDefinition: the executions *inside* a
+flow.** Keycloak's `authentication/executions` API is **create-then-mutate** —
+an execution is created at `.../executions/execution`, its `requirement` is set
+by a `PUT` to a *different* path (`.../executions`), and ordering is done with
+`raise-priority` / `lower-priority` **move operations**. `rest-dynamic-controller`
+is a flat CRUD engine (it matches path params by field name and sends spec
+fields as a body; it has no verb-sequencing), so a single declarative
+RestDefinition cannot express create + requirement + reorder.
+
+The sanctioned way to add that without touching the operator is the **plugin
+(facade web service)** pattern used by
+[`oxide-rest-dynamic-controller-plugin`](https://github.com/braghettos/oxide-rest-dynamic-controller-plugin):
+a small stateless service that rdc drives with plain CRUD (point the OAS
+`servers[0].url` at it) while it internally orchestrates the create-then-mutate
++ move-op sequence and forwards the caller's bearer token. A snowplow
+`RESTAction` (a declarative call-chain executed by the BFF) is an alternative
+for a portal-driven "apply this flow" action, but it is on-demand orchestration
+rather than a continuously-reconciled CR, so it is a weaker fit for the engine
+layer. **Managing individual executions/subflows is tracked as the follow-up to
+this work** (the pure-RD surface above lands first).
+
 ## Status
 
 Both charts `helm lint` clean and `helm template` to valid manifests. The KOG's

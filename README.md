@@ -22,6 +22,25 @@ The **lifecycle** half (installing Keycloak itself) is the sibling
 | `KeycloakGroup` | group | `name` → UUID via `findby` |
 | `KeycloakIdentityProvider` | IdP instance (e.g. GitHub broker) | natural key `alias` (direct) |
 | `KeycloakIdentityProviderMapper` | mapper on an IdP instance (e.g. GitHub → group) | `name` → UUID via `findby`; parent `alias` |
+| `KeycloakAuthenticationFlow` | authentication flow (top-level container) | `alias` → UUID via `findby` |
+| `KeycloakRequiredAction` | required-action provider (e.g. `CONFIGURE_TOTP`, `webauthn-register`) | natural key `alias` (direct) |
+
+### Authentication & MFA
+
+`KeycloakRealm` also carries the realm **OTP** (`otpPolicy*`) and **WebAuthn**
+(`webAuthnPolicy*`, incl. passwordless) **policy** fields and the top-level flow
+bindings (`browserFlow`, `directGrantFlow`); `KeycloakRequiredAction` toggles the
+built-in MFA actions; `KeycloakAuthenticationFlow` manages a top-level flow
+container. **ACR → Level-of-Authentication** mapping is the standard
+`acr.loa.map` **client attribute** (set `default.acr.values` for the default
+level) — expressed directly on `KeycloakClient.attributes`, so issued tokens
+carry the `acr` claim per level. See `samples/20-authentication-mfa.yaml`.
+
+> Managing the individual **executions/subflows inside** a flow (requirement +
+> ordering) is intentionally out of scope for a plain RestDefinition — Keycloak's
+> executions API is create-then-mutate with move-op ordering. See
+> [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#authentication-flows--executions-mfa--acr)
+> for the plugin-facade follow-up.
 
 > **Mappers on a client you manage here** are best declared **inline** on the
 > `KeycloakClient` via its `protocolMappers` array — fully declarative, no
@@ -95,10 +114,22 @@ Three corrections the spike forced into the design (now applied to all six RDs):
    array-of-object items, so `protocolMappers` references a named
    `ClientProtocolMapperEntry` schema instead of an inline object.
 
-**All seven resources validated** on a live kind cluster (Keycloak 26.6.3):
+**The seven core resources validated** on a live kind cluster (Keycloak 26.6.3):
 `KeycloakRealm`, `KeycloakGroup`, `KeycloakClientScope`, `KeycloakClient`,
 `KeycloakProtocolMapper`, `KeycloakIdentityProvider`, and
 `KeycloakIdentityProviderMapper` each reconcile into the real Keycloak.
+
+**Authentication & MFA resources — validation status.** The realm OTP/WebAuthn
+policy fields and the ACR client-attribute path extend already-validated
+resources (`KeycloakRealm`/`KeycloakClient`) and are exercised by
+`helm template` + schema checks. `KeycloakRequiredAction` (natural-key `alias`,
+direct) and `KeycloakAuthenticationFlow` (natural-key `alias` → `findby` → `id`)
+reuse the exact addressing patterns already proven by `KeycloakIdentityProvider`
+and `KeycloakClient` respectively; **live-cluster reconcile of these two is
+pending** and will be confirmed alongside the executions follow-up. One known
+Keycloak-specific caveat: `register-required-action` is the create endpoint for a
+brand-new action, but the base actions (`CONFIGURE_TOTP`, `webauthn-register`)
+ship built-in, so reconcile normally observes + updates rather than creates.
 
 Resource-specific note surfaced by validation:
 

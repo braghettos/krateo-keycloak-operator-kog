@@ -1,0 +1,56 @@
+{{- if .Values.restDefinitions.authenticationflow.enabled }}
+apiVersion: ogen.krateo.io/v1alpha1
+kind: RestDefinition
+metadata:
+  name: {{ .Release.Name }}-authenticationflow
+  labels:
+    {{- include "keycloak-config-kog.labels" . | nindent 4 }}
+  {{- if .Values.verbose }}
+  annotations:
+    krateo.io/connector-verbose: "true"
+  {{- end }}
+spec:
+  oasPath: configmap://{{ .Release.Namespace }}/{{ .Release.Name }}-authenticationflow/authenticationflow.yaml
+  resourceGroup: {{ .Values.resourceGroup }}
+  resource:
+    kind: {{ .Values.restDefinitions.authenticationflow.kind }}
+    # Top-level authentication flow container. `alias` is the user-supplied
+    # natural key (findby); the server-generated UUID {id} is resolved via findby
+    # and used for get/update/delete. Parent scope: {realm}.
+    # NOTE: this manages the flow *container* only — executions/subflows inside a
+    # flow are not modelled here (the Keycloak executions API is create-then-mutate
+    # with move-op ordering; see docs/ARCHITECTURE.md).
+    identifiers:
+      - alias
+    additionalStatusFields:
+      - id
+    # `id` is server-generated (read-only) — keep it out of spec.
+    # {realm} parent path param auto-surfaces as a spec field.
+    excludedSpecFields:
+      - id
+    verbsDescription:
+      - action: create
+        method: POST
+        path: /admin/realms/{realm}/authentication/flows
+      - action: findby
+        method: GET
+        path: /admin/realms/{realm}/authentication/flows
+      - action: get
+        method: GET
+        path: /admin/realms/{realm}/authentication/flows/{id}
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
+      - action: update
+        method: PUT
+        path: /admin/realms/{realm}/authentication/flows/{id}
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
+      - action: delete
+        method: DELETE
+        path: /admin/realms/{realm}/authentication/flows/{id}
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
+{{- end }}
