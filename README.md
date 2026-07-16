@@ -40,7 +40,8 @@ carry the `acr` claim per level. See `samples/20-authentication-mfa.yaml`.
 > ordering) is intentionally out of scope for a plain RestDefinition — Keycloak's
 > executions API is create-then-mutate with move-op ordering. See
 > [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#authentication-flows--executions-mfa--acr)
-> for the plugin-facade follow-up.
+> for the orchestration follow-up (a snowplow `RESTAction` — the lead option,
+> since snowplow is already a hard rdc dependency — or a facade plugin).
 
 > **Mappers on a client you manage here** are best declared **inline** on the
 > `KeycloakClient` via its `protocolMappers` array — fully declarative, no

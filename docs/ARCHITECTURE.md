@@ -83,17 +83,30 @@ is a flat CRUD engine (it matches path params by field name and sends spec
 fields as a body; it has no verb-sequencing), so a single declarative
 RestDefinition cannot express create + requirement + reorder.
 
-The sanctioned way to add that without touching the operator is the **plugin
-(facade web service)** pattern used by
-[`oxide-rest-dynamic-controller-plugin`](https://github.com/braghettos/oxide-rest-dynamic-controller-plugin):
-a small stateless service that rdc drives with plain CRUD (point the OAS
-`servers[0].url` at it) while it internally orchestrates the create-then-mutate
-+ move-op sequence and forwards the caller's bearer token. A snowplow
-`RESTAction` (a declarative call-chain executed by the BFF) is an alternative
-for a portal-driven "apply this flow" action, but it is on-demand orchestration
-rather than a continuously-reconciled CR, so it is a weaker fit for the engine
-layer. **Managing individual executions/subflows is tracked as the follow-up to
-this work** (the pure-RD surface above lands first).
+Two mechanisms can add that without touching the operator:
+
+1. **A snowplow `RESTAction`** (leading option). A `RESTAction` is a declarative
+   call-chain: each `api[]` stage has a verb, payload, `endpointRef` (base URL +
+   auth), `dependsOn` (with an `iterator` to fan out over a list) and a JQ
+   `filter`. That expresses `POST flow → POST execution (dependsOn flow) → PUT
+   requirement → raise/lower-priority (iterated)`, threading ids via JQ and
+   authing through an Endpoint backed by the same admin token. Crucially it adds
+   **no new dependency and no new code**: `rest-dynamic-controller` already
+   hard-depends on snowplow at runtime (its pluralizer resolves GVK→GVR via
+   snowplow's `/api-info/names`), and that same snowplow is the RESTAction
+   resolver. A RESTAction is *invocation-driven* (resolved when called), which
+   suits provisioning a flow as a portal/onboarding action (D18).
+2. **A facade plugin** (the `oxide-rest-dynamic-controller-plugin` pattern): a
+   small stateless service that rdc drives with plain CRUD (point the OAS
+   `servers[0].url` at it) while it internally orchestrates the sequence. This
+   buys full apply/resync/delete **reconcile** semantics for the flow itself, at
+   the cost of a new service to build and run. Choose this only if the flow must
+   behave like every other reconciled CR here; it is not needed to avoid a
+   snowplow dependency (there is no new one to avoid).
+
+**Managing individual executions/subflows is tracked as the follow-up to this
+work** (the pure-RD surface above lands first); the RESTAction is the current
+lead.
 
 ## Status
 
