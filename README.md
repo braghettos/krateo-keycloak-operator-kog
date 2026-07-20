@@ -24,6 +24,7 @@ The **lifecycle** half (installing Keycloak itself) is the sibling
 | `KeycloakIdentityProviderMapper` | mapper on an IdP instance (e.g. GitHub → group) | `name` → UUID via `findby`; parent `alias` |
 | `KeycloakAuthenticationFlow` | authentication flow (top-level container) | `alias` → UUID via `findby` |
 | `KeycloakRequiredAction` | required-action provider (e.g. `CONFIGURE_TOTP`, `webauthn-register`) | natural key `alias` (direct) |
+| `KeycloakAuthenticationExecution` | one execution / subflow **inside** a flow (requirement, position, authenticator config) | `(realm, flowAlias, provider \| alias)` via delegated Snowplow RESTActions |
 
 ### Authentication & MFA
 
@@ -36,12 +37,15 @@ container. **ACR → Level-of-Authentication** mapping is the standard
 level) — expressed directly on `KeycloakClient.attributes`, so issued tokens
 carry the `acr` claim per level. See `samples/20-authentication-mfa.yaml`.
 
-> Managing the individual **executions/subflows inside** a flow (requirement +
-> ordering) is the tracked follow-up. Keycloak's executions API is
-> create-then-mutate, which the shipped `rest-dynamic-controller` handles by
-> **delegating observe/create/update/delete to Snowplow `RESTAction`s**
-> (`observeApiRef`/`createApiRef`/`updateApiRef`/`deleteApiRef`) — full reconcile,
-> no plugin. See
+> The individual **executions/subflows inside** a flow are managed by
+> `KeycloakAuthenticationExecution` — one CR per direct child of the flow named
+> by `spec.flowAlias` (nesting = pointing `flowAlias` at a subflow's alias).
+> Keycloak's executions API is create-then-mutate with move-op ordering, so this
+> RestDefinition **delegates observe/create/update/delete to Snowplow
+> `RESTAction`s** (`observeApiRef`/`createApiRef`/`updateApiRef`/`deleteApiRef`)
+> — full reconcile, no plugin, no operator code. The sample assembles the
+> canonical step-up ladder (LoA 1 = password, LoA 2 = OTP), which with
+> `acr.loa.map` makes an `acr_values=gold` login issue a token with `acr=2`. See
 > [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#authentication-flows--executions-mfa--acr).
 
 > **Mappers on a client you manage here** are best declared **inline** on the
@@ -128,10 +132,20 @@ resources (`KeycloakRealm`/`KeycloakClient`) and are exercised by
 direct) and `KeycloakAuthenticationFlow` (natural-key `alias` → `findby` → `id`)
 reuse the exact addressing patterns already proven by `KeycloakIdentityProvider`
 and `KeycloakClient` respectively; **live-cluster reconcile of these two is
-pending** and will be confirmed alongside the executions follow-up. One known
-Keycloak-specific caveat: `register-required-action` is the create endpoint for a
-brand-new action, but the base actions (`CONFIGURE_TOTP`, `webauthn-register`)
-ship built-in, so reconcile normally observes + updates rather than creates.
+pending**. One known Keycloak-specific caveat: `register-required-action` is the
+create endpoint for a brand-new action, but the base actions (`CONFIGURE_TOTP`,
+`webauthn-register`) ship built-in, so reconcile normally observes + updates
+rather than creates.
+
+**`KeycloakAuthenticationExecution` — validation status.** The RESTAction
+delegation mechanics (`observeApiRef` existence/drift gating, level-based
+create convergence, finalizer-held delete) are covered by unit tests in the
+`rest-dynamic-controller` it ships with; the chart renders + lints clean and
+every jq expression parses. **Live-cluster reconcile — in particular the
+move-op ordering converging to `spec.priority` and the
+`conditional-level-of-authentication` config producing a live `acr=2` token —
+is the remaining validation step** and is exactly what
+`samples/20-authentication-mfa.yaml` + `demo/mfa-stepup` exercise.
 
 Resource-specific note surfaced by validation:
 

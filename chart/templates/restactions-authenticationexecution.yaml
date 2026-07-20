@@ -1,0 +1,259 @@
+{{- if .Values.restDefinitions.authenticationexecution.enabled }}
+{{- /*
+Snowplow RESTActions backing the KeycloakAuthenticationExecution RestDefinition
+(observeApiRef/createApiRef/updateApiRef/deleteApiRef - see rd-authenticationexecution.yaml).
+
+Request context (extras) passed by rest-dynamic-controller on every invocation:
+  - name/namespace/uid of the CR,
+  - the declared identifiers resolved from spec: realm, flowAlias, provider, alias, subFlow,
+  - PLUS the whole `spec` for create/update (the desired state); observe/delete
+    only receive the identifiers.
+Extras seed the jq dict, so stages reference them directly (`.realm`, `.flowAlias`, ...).
+
+Matching rule (the resource's natural key among the parent flow's DIRECT children,
+i.e. level == 0 of the {flowAlias} executions listing):
+  - execution: providerId == .provider
+  - subflow:   authenticationFlow and displayName == .alias
+
+All Keycloak calls go through the snowplow Endpoint-shaped Secret
+`{{ .Values.snowplow.endpointSecretName }}` (server-url + rotated admin bearer,
+rendered by templates/externalsecret.yaml).
+
+Keycloak success responses on the mutation endpoints are 201/204 with an EMPTY
+body, which the JSON stage handler reports as a stage error - hence
+continueOnError+errorKey on every mutation stage. Convergence is level-based:
+create/update are re-invoked until the observe stops reporting absence/drift,
+and delete is finalizer-held until the RESTAction succeeds.
+*/}}
+apiVersion: templates.krateo.io/v1
+kind: RESTAction
+metadata:
+  name: {{ .Release.Name }}-authenticationexecution-observe
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "keycloak-config-kog.labels" . | nindent 4 }}
+spec:
+  api:
+    - name: executions
+      endpointRef:
+        name: {{ .Values.snowplow.endpointSecretName }}
+        namespace: {{ .Release.Namespace }}
+      path: '${ "/admin/realms/" + .realm + "/authentication/flows/" + (.flowAlias|@uri) + "/executions" }'
+      # A 404 here (parent flow not created yet) must compose {found:false},
+      # not fail the observe: the create then errors until the flow exists and
+      # the reconcile converges once it does.
+      continueOnError: true
+      errorKey: executionsError
+  filter: |-
+    (.subFlow // false) as $sub
+    | (.alias // "") as $alias
+    | (.provider // "") as $prov
+    | ((.executions // [])
+       | map(select(((.level // 0) == 0)
+             and (if $sub then ((.authenticationFlow // false) and (.displayName == $alias))
+                  else (.providerId == $prov) end)))) as $m
+    | if ($m | length) == 0 then {found: false}
+      else {found: true,
+            id: $m[0].id,
+            requirement: ($m[0].requirement // ""),
+            index: ($m[0].index // 0),
+            level: ($m[0].level // 0),
+            configured: (($m[0].authenticationConfig // null) != null)}
+      end
+---
+apiVersion: templates.krateo.io/v1
+kind: RESTAction
+metadata:
+  name: {{ .Release.Name }}-authenticationexecution-create
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "keycloak-config-kog.labels" . | nindent 4 }}
+spec:
+  api:
+    # Execution: POST .../executions/execution {provider}.
+    # Subflow:   POST .../executions/flow {alias, type, description}.
+    # Requirement/priority/config are applied by the update RESTAction on the
+    # next reconcile (Keycloak creates executions as DISABLED, so the observe
+    # reports drift immediately after a successful create).
+    - name: create
+      endpointRef:
+        name: {{ .Values.snowplow.endpointSecretName }}
+        namespace: {{ .Release.Namespace }}
+      verb: POST
+      headers:
+        - "Content-Type: application/json"
+      path: >-
+        ${ "/admin/realms/" + .realm + "/authentication/flows/" + (.flowAlias|@uri)
+           + "/executions/" + (if (.subFlow // false) then "flow" else "execution" end) }
+      payload: >-
+        ${ if (.subFlow // false)
+           then ({alias: (.alias // ""), type: (.spec.providerId // "basic-flow")}
+                 + (if (.spec.description // "") != "" then {description: .spec.description} else {} end))
+           else {provider: (.provider // "")} end }
+      continueOnError: true
+      errorKey: createError
+  filter: '{}'
+---
+apiVersion: templates.krateo.io/v1
+kind: RESTAction
+metadata:
+  name: {{ .Release.Name }}-authenticationexecution-update
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "keycloak-config-kog.labels" . | nindent 4 }}
+spec:
+  api:
+    # Fresh listing: ids/indexes may have changed since the observe.
+    - name: list
+      endpointRef:
+        name: {{ .Values.snowplow.endpointSecretName }}
+        namespace: {{ .Release.Namespace }}
+      path: '${ "/admin/realms/" + .realm + "/authentication/flows/" + (.flowAlias|@uri) + "/executions" }'
+    # Requirement: PUT the matched entry back with the desired requirement.
+    - name: requirement
+      dependsOn:
+        name: list
+      endpointRef:
+        name: {{ .Values.snowplow.endpointSecretName }}
+        namespace: {{ .Release.Namespace }}
+      verb: PUT
+      headers:
+        - "Content-Type: application/json"
+      path: '${ "/admin/realms/" + .realm + "/authentication/flows/" + (.flowAlias|@uri) + "/executions" }'
+      payload: >-
+        ${ (.subFlow // false) as $sub
+         | (.alias // "") as $alias
+         | (.provider // "") as $prov
+         | ((((.list // [])
+              | map(select(((.level // 0) == 0)
+                    and (if $sub then ((.authenticationFlow // false) and (.displayName == $alias))
+                         else (.providerId == $prov) end))))[0]) // {}) as $e
+         | $e + {requirement: (.spec.requirement // "DISABLED")} }
+      continueOnError: true
+      errorKey: requirementError
+    # Ordering: fan out |index - priority| raise-/lower-priority move ops (all one
+    # direction, so applying them in a single pass is order-safe); the next observe
+    # re-checks the index and the reconcile converges over resyncs.
+    - name: moves
+      dependsOn:
+        name: list
+        iterator: >-
+          (.spec.priority // null) as $want
+          | (.subFlow // false) as $sub
+          | (.alias // "") as $alias
+          | (.provider // "") as $prov
+          | .realm as $realm
+          | ((((.list // [])
+               | map(select(((.level // 0) == 0)
+                     and (if $sub then ((.authenticationFlow // false) and (.displayName == $alias))
+                          else (.providerId == $prov) end))))[0]) // null) as $e
+          | if ($want == null) or ($e == null) then []
+            else (($e.index // 0) - $want) as $d
+            | (if $d > 0 then ([range(0; $d)] | map({realm: $realm, id: $e.id, op: "raise-priority"}))
+               elif $d < 0 then ([range(0; -$d)] | map({realm: $realm, id: $e.id, op: "lower-priority"}))
+               else [] end)
+            end
+      endpointRef:
+        name: {{ .Values.snowplow.endpointSecretName }}
+        namespace: {{ .Release.Namespace }}
+      verb: POST
+      path: '${ "/admin/realms/" + .realm + "/authentication/executions/" + .id + "/" + .op }'
+      continueOnError: true
+      errorKey: movesError
+    # Authenticator config, presence-gated: POST .../executions/{id}/config when the
+    # execution has none...
+    - name: configcreate
+      dependsOn:
+        name: list
+        iterator: >-
+          (.spec.config // null) as $cfg
+          | (.subFlow // false) as $sub
+          | (.alias // "") as $alias
+          | (.provider // "") as $prov
+          | ((((.list // [])
+               | map(select(((.level // 0) == 0)
+                     and (if $sub then ((.authenticationFlow // false) and (.displayName == $alias))
+                          else (.providerId == $prov) end))))[0]) // null) as $e
+          | if ($cfg == null) or ($e == null) or (($e.authenticationConfig // null) != null) then []
+            else [{realm: .realm, id: $e.id, alias: (.spec.configAlias // .name), config: $cfg}]
+            end
+      endpointRef:
+        name: {{ .Values.snowplow.endpointSecretName }}
+        namespace: {{ .Release.Namespace }}
+      verb: POST
+      headers:
+        - "Content-Type: application/json"
+      path: '${ "/admin/realms/" + .realm + "/authentication/executions/" + .id + "/config" }'
+      payload: '${ {alias: .alias, config: .config} }'
+      continueOnError: true
+      errorKey: configCreateError
+    # ...and PUT .../authenticator-config/{id} (idempotent re-apply of the desired
+    # values) when one is already attached.
+    - name: configupdate
+      dependsOn:
+        name: list
+        iterator: >-
+          (.spec.config // null) as $cfg
+          | (.subFlow // false) as $sub
+          | (.alias // "") as $alias
+          | (.provider // "") as $prov
+          | ((((.list // [])
+               | map(select(((.level // 0) == 0)
+                     and (if $sub then ((.authenticationFlow // false) and (.displayName == $alias))
+                          else (.providerId == $prov) end))))[0]) // null) as $e
+          | if ($cfg == null) or ($e == null) or (($e.authenticationConfig // null) == null) then []
+            else [{realm: .realm, configId: $e.authenticationConfig, alias: (.spec.configAlias // .name), config: $cfg}]
+            end
+      endpointRef:
+        name: {{ .Values.snowplow.endpointSecretName }}
+        namespace: {{ .Release.Namespace }}
+      verb: PUT
+      headers:
+        - "Content-Type: application/json"
+      path: '${ "/admin/realms/" + .realm + "/authenticator-config/" + .configId }'
+      payload: '${ {id: .configId, alias: .alias, config: .config} }'
+      continueOnError: true
+      errorKey: configUpdateError
+  filter: '{}'
+---
+apiVersion: templates.krateo.io/v1
+kind: RESTAction
+metadata:
+  name: {{ .Release.Name }}-authenticationexecution-delete
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "keycloak-config-kog.labels" . | nindent 4 }}
+spec:
+  api:
+    # Tolerate an already-gone parent flow (deleting the flow deletes its
+    # executions): the listing 404s, the iterator emits nothing, the delete
+    # succeeds as a no-op and the finalizer is released.
+    - name: list
+      endpointRef:
+        name: {{ .Values.snowplow.endpointSecretName }}
+        namespace: {{ .Release.Namespace }}
+      path: '${ "/admin/realms/" + .realm + "/authentication/flows/" + (.flowAlias|@uri) + "/executions" }'
+      continueOnError: true
+      errorKey: listError
+    - name: del
+      dependsOn:
+        name: list
+        iterator: >-
+          (.subFlow // false) as $sub
+          | (.alias // "") as $alias
+          | (.provider // "") as $prov
+          | .realm as $realm
+          | ((((.list // [])
+               | map(select(((.level // 0) == 0)
+                     and (if $sub then ((.authenticationFlow // false) and (.displayName == $alias))
+                          else (.providerId == $prov) end))))[0]) // null) as $e
+          | if $e == null then [] else [{realm: $realm, id: $e.id}] end
+      endpointRef:
+        name: {{ .Values.snowplow.endpointSecretName }}
+        namespace: {{ .Release.Namespace }}
+      verb: DELETE
+      path: '${ "/admin/realms/" + .realm + "/authentication/executions/" + .id }'
+      continueOnError: true
+      errorKey: deleteError
+  filter: '{}'
+{{- end }}

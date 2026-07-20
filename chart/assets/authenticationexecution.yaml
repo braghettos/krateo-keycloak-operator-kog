@@ -1,0 +1,174 @@
+openapi: 3.0.3
+info:
+  title: Keycloak Admin API - Authentication Execution (KOG subset)
+  version: v1
+  description: Hand-curated OpenAPI 3.0 subset of the Keycloak Admin REST API for a single
+    execution (or subflow) INSIDE an authentication flow. Unlike the other assets, this
+    resource is NOT reconciled through plain verbs alone - Keycloak's executions API is
+    create-then-mutate with move-op ordering - so the RestDefinition delegates its
+    lifecycle to Snowplow RESTActions (observeApiRef/createApiRef/updateApiRef/
+    deleteApiRef). This OAS exists to (a) generate the CRD spec shape from the create
+    request body and (b) declare the findby verb the controller requires for level-based
+    convergence. Declares the http/bearer security scheme that the upstream Keycloak OAS
+    omits.
+servers:
+- url: '{{ .Values.keycloak.baseUrl }}'
+  description: Keycloak base URL (no trailing slash).
+security:
+- bearer: []
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: Keycloak admin access token (OAuth2 Bearer).
+  schemas:
+    AuthenticationExecutionInput:
+      type: object
+      description: Desired state of one execution (or subflow) that is a DIRECT child of
+        the flow addressed by the {flowAlias} path parameter (a top-level flow alias or a
+        subflow alias - Keycloak flow aliases are realm-unique). The natural key is
+        (realm, flowAlias, provider) for an execution and (realm, flowAlias, alias) for a
+        subflow.
+      properties:
+        provider:
+          type: string
+          description: Authenticator provider id (e.g. auth-cookie, auth-otp-form,
+            auth-username-password-form, conditional-user-configured,
+            conditional-level-of-authentication, identity-provider-redirector). Natural
+            key among the parent flow's direct children when subFlow is false. Declare at
+            most one CR per (flowAlias, provider) pair - duplicate providers under the
+            same parent are not distinguishable.
+        subFlow:
+          type: boolean
+          description: When true this CR manages a SUBFLOW (addressed by alias) instead of
+            an execution (addressed by provider).
+        alias:
+          type: string
+          description: Subflow alias (required when subFlow is true; ignored otherwise).
+            Keycloak flow aliases are realm-unique, so a nested execution declares this
+            alias as its flowAlias parent.
+        providerId:
+          type: string
+          description: Subflow type when subFlow is true - basic-flow (default) or
+            form-flow. Ignored for executions.
+        description:
+          type: string
+          description: Subflow description (subFlow only).
+        requirement:
+          type: string
+          description: 'Execution requirement: REQUIRED, ALTERNATIVE, CONDITIONAL or
+            DISABLED. Keycloak creates executions as DISABLED; the reconcile PUTs the
+            desired value (default DISABLED).'
+        priority:
+          type: integer
+          description: Desired zero-based index among the parent flow's direct children.
+            When set, the reconcile converges the position via Keycloak's
+            raise-priority/lower-priority move operations (one direction per reconcile
+            pass; re-observed until stable). Unset = position not managed.
+        configAlias:
+          type: string
+          description: Alias for the authenticator config entry (defaults to the CR
+            name). Only used when config is set.
+        config:
+          type: object
+          additionalProperties:
+            type: string
+          description: Authenticator config key/values (e.g. for
+            conditional-level-of-authentication set loa-condition-level "2" and
+            loa-max-age "0"). Drift detection is PRESENCE-ONLY - the reconcile applies the
+            config when the execution has none and re-applies values on any other drift
+            update, but a value-only change does not by itself trigger an update.
+    AuthenticationExecutionInfoRepresentation:
+      type: object
+      description: One entry of the flow's executions listing (recursive; level 0 = direct
+        child of the addressed flow). found/configured are synthetic fields composed by
+        the observe RESTAction, surfaced here so they land in the generated status.
+      properties:
+        id:
+          type: string
+          description: Server-generated execution id (read-only).
+          readOnly: true
+        providerId:
+          type: string
+        displayName:
+          type: string
+          description: For a subflow entry this is the subflow alias.
+        authenticationFlow:
+          type: boolean
+          description: True when the entry is a subflow.
+        requirement:
+          type: string
+        index:
+          type: integer
+          description: Zero-based position among siblings at the same level.
+        level:
+          type: integer
+          description: Nesting depth relative to the addressed flow (0 = direct child).
+        configurable:
+          type: boolean
+        authenticationConfig:
+          type: string
+          description: Id of the attached authenticator config, when present.
+        found:
+          type: boolean
+          description: Synthetic (observe RESTAction) - whether the execution/subflow was
+            found among the parent flow's direct children.
+        configured:
+          type: boolean
+          description: Synthetic (observe RESTAction) - whether an authenticator config is
+            attached.
+paths:
+  /admin/realms/{realm}/authentication/flows/{flowAlias}/executions/execution:
+    post:
+      operationId: createAuthenticationexecution
+      summary: Add an execution (or, via the RESTAction's /executions/flow branch, a subflow) to a flow
+      tags:
+      - authenticationexecution
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: flowAlias
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Alias of the DIRECT parent flow (top-level flow alias or subflow alias).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthenticationExecutionInput'
+      responses:
+        '201':
+          description: Created. Identifier returned via Location header.
+  /admin/realms/{realm}/authentication/flows/{flowAlias}/executions:
+    get:
+      operationId: listAuthenticationexecution
+      summary: List the executions of a flow (recursive; level 0 = direct children)
+      tags:
+      - authenticationexecution
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: flowAlias
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuthenticationExecutionInfoRepresentation'

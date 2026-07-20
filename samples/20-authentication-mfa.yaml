@@ -3,6 +3,8 @@
 #   - a realm carrying OTP (TOTP) + WebAuthn policy
 #   - the CONFIGURE_TOTP and webauthn-register required actions, enabled as CRs
 #   - a top-level browser authentication flow (container)
+#   - the executions/subflows INSIDE that flow (KeycloakAuthenticationExecution),
+#     assembling the canonical step-up ladder: LoA 1 = password, LoA 2 = OTP
 #   - a client that maps Authentication Context Class References (acr) to
 #     Levels of Authentication (LoA), so issued tokens carry the acr claim
 #
@@ -74,9 +76,13 @@ spec:
   defaultAction: false
   priority: 20
 ---
-# Top-level browser authentication flow (container). Executions/subflows inside
-# the flow are configured separately — see docs/ARCHITECTURE.md ("Authentication
-# flows & executions").
+# Top-level browser authentication flow (container). The executions/subflows
+# inside it are declared below as KeycloakAuthenticationExecution CRs — see
+# docs/ARCHITECTURE.md ("Authentication flows & executions").
+#
+# Once the flow has converged, bind it as the realm's browser flow by setting
+# `browserFlow: browser-mfa` on the KeycloakRealm above (left unbound here so a
+# first `kubectl apply` of this whole file cannot race the flow's creation).
 apiVersion: keycloak.ogen.krateo.io/v1alpha1
 kind: KeycloakAuthenticationFlow
 metadata:
@@ -92,6 +98,175 @@ spec:
   providerId: basic-flow
   topLevel: true
   builtIn: false
+---
+# ---------------------------------------------------------------------------
+# Executions/subflows of browser-mfa — Keycloak's canonical step-up ladder:
+#
+#   browser-mfa
+#   ├── auth-cookie                          ALTERNATIVE
+#   ├── identity-provider-redirector         ALTERNATIVE
+#   └── browser-mfa-forms          (subflow) ALTERNATIVE
+#       ├── browser-mfa-loa1       (subflow) CONDITIONAL   → acr 1 (password)
+#       │   ├── conditional-level-of-authentication REQUIRED  loa 1, max-age 36000
+#       │   └── auth-username-password-form         REQUIRED
+#       └── browser-mfa-loa2       (subflow) CONDITIONAL   → acr 2 (OTP)
+#           ├── conditional-level-of-authentication REQUIRED  loa 2, max-age 0
+#           └── auth-otp-form                       REQUIRED
+#
+# Each CR manages ONE direct child of the flow named by `flowAlias` (subflow
+# aliases are realm-unique, so nesting = pointing flowAlias at the subflow).
+# With the acr.loa.map on the client below, a request with acr_values=gold
+# forces the OTP leg and the issued token carries acr=2 — the signal a
+# step-up guard checks before allowing a critical operation.
+# ---------------------------------------------------------------------------
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakAuthenticationExecution
+metadata:
+  name: browser-mfa-cookie
+  namespace: krateo-system
+spec:
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
+  realm: mfa-demo
+  flowAlias: browser-mfa
+  provider: auth-cookie
+  requirement: ALTERNATIVE
+  priority: 0
+---
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakAuthenticationExecution
+metadata:
+  name: browser-mfa-idp-redirector
+  namespace: krateo-system
+spec:
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
+  realm: mfa-demo
+  flowAlias: browser-mfa
+  provider: identity-provider-redirector
+  requirement: ALTERNATIVE
+  priority: 1
+---
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakAuthenticationExecution
+metadata:
+  name: browser-mfa-forms
+  namespace: krateo-system
+spec:
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
+  realm: mfa-demo
+  flowAlias: browser-mfa
+  subFlow: true
+  alias: browser-mfa-forms
+  description: "Interactive forms (LoA ladder)"
+  requirement: ALTERNATIVE
+  priority: 2
+---
+# LoA 1 leg: password. loa-max-age 36000 keeps level 1 valid for the session.
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakAuthenticationExecution
+metadata:
+  name: browser-mfa-loa1
+  namespace: krateo-system
+spec:
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
+  realm: mfa-demo
+  flowAlias: browser-mfa-forms
+  subFlow: true
+  alias: browser-mfa-loa1
+  requirement: CONDITIONAL
+  priority: 0
+---
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakAuthenticationExecution
+metadata:
+  name: browser-mfa-loa1-condition
+  namespace: krateo-system
+spec:
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
+  realm: mfa-demo
+  flowAlias: browser-mfa-loa1
+  provider: conditional-level-of-authentication
+  requirement: REQUIRED
+  priority: 0
+  configAlias: loa1-condition
+  config:
+    loa-condition-level: "1"
+    loa-max-age: "36000"
+---
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakAuthenticationExecution
+metadata:
+  name: browser-mfa-loa1-password
+  namespace: krateo-system
+spec:
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
+  realm: mfa-demo
+  flowAlias: browser-mfa-loa1
+  provider: auth-username-password-form
+  requirement: REQUIRED
+  priority: 1
+---
+# LoA 2 leg: OTP. loa-max-age 0 = re-authenticate every time level 2 is asked.
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakAuthenticationExecution
+metadata:
+  name: browser-mfa-loa2
+  namespace: krateo-system
+spec:
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
+  realm: mfa-demo
+  flowAlias: browser-mfa-forms
+  subFlow: true
+  alias: browser-mfa-loa2
+  requirement: CONDITIONAL
+  priority: 1
+---
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakAuthenticationExecution
+metadata:
+  name: browser-mfa-loa2-condition
+  namespace: krateo-system
+spec:
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
+  realm: mfa-demo
+  flowAlias: browser-mfa-loa2
+  provider: conditional-level-of-authentication
+  requirement: REQUIRED
+  priority: 0
+  configAlias: loa2-condition
+  config:
+    loa-condition-level: "2"
+    loa-max-age: "0"
+---
+apiVersion: keycloak.ogen.krateo.io/v1alpha1
+kind: KeycloakAuthenticationExecution
+metadata:
+  name: browser-mfa-loa2-otp
+  namespace: krateo-system
+spec:
+  configurationRef:
+    name: keycloak-admin
+    namespace: krateo-system
+  realm: mfa-demo
+  flowAlias: browser-mfa-loa2
+  provider: auth-otp-form
+  requirement: REQUIRED
+  priority: 1
 ---
 # A client that advertises an ACR -> LoA map, so tokens it issues carry the acr
 # claim per level. ACR mapping is a standard Keycloak client attribute

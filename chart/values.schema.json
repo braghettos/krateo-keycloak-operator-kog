@@ -292,6 +292,38 @@
               "default": "KeycloakRequiredAction"
             }
           }
+        },
+        "authenticationexecution": {
+          "type": "object",
+          "title": "Authentication execution",
+          "description": "KeycloakAuthenticationExecution RestDefinition (one execution or subflow inside a flow). Lifecycle verbs are delegated to Snowplow RESTActions (observeApiRef/createApiRef/updateApiRef/deleteApiRef) because Keycloak's executions API is create-then-mutate with move-op ordering. Requires the snowplow endpoint Secret (snowplow.endpointSecretName).",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Emit the KeycloakAuthenticationExecution RestDefinition plus its backing RESTActions and endpoint Secret.",
+              "default": true
+            },
+            "kind": {
+              "type": "string",
+              "title": "Kind",
+              "description": "Kubernetes kind for the generated CRD.",
+              "default": "KeycloakAuthenticationExecution"
+            }
+          }
+        }
+      }
+    },
+    "snowplow": {
+      "type": "object",
+      "title": "Snowplow delegation",
+      "description": "Settings for the RESTAction-delegated resources (currently only KeycloakAuthenticationExecution).",
+      "properties": {
+        "endpointSecretName": {
+          "type": "string",
+          "title": "Endpoint Secret name",
+          "description": "Name of the snowplow Endpoint-shaped Secret (keys: server-url, token) the authentication-execution RESTActions call Keycloak through. Rendered in the release namespace from the same rotated admin token when auth.externalSecret.enabled is true; otherwise supply it yourself.",
+          "default": "keycloak-admin-endpoint"
         }
       }
     },

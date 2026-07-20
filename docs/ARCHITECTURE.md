@@ -74,49 +74,69 @@ The KOG exposes the *login-configuration* surface too:
   `default.acr.values` for the client's default requested level. This is what
   makes issued tokens carry the `acr` claim per level.
 
-**Deliberately not modelled as a plain RestDefinition: the executions *inside* a
-flow.** Keycloak's `authentication/executions` API is **create-then-mutate** —
-an execution is created at `.../executions/execution`, its `requirement` is set
-by a `PUT` to a *different* path (`.../executions`), and ordering is done with
-`raise-priority` / `lower-priority` **move operations**. The plain OAS
-`verbsDescription` (one path per verb) cannot sequence that.
+**The executions *inside* a flow are not a plain RestDefinition.** Keycloak's
+`authentication/executions` API is **create-then-mutate** — an execution is
+created at `.../executions/execution`, its `requirement` is set by a `PUT` to a
+*different* path (`.../executions`), and ordering is done with `raise-priority`
+/ `lower-priority` **move operations**. The plain OAS `verbsDescription` (one
+path per verb) cannot sequence that.
 
-**The shipped `rest-dynamic-controller` handles it without a plugin.** A
-`RestDefinition` can delegate any of its four lifecycle verbs to a **Snowplow
-`RESTAction`** — `observeApiRef` / `createApiRef` / `updateApiRef` /
-`deleteApiRef` — wired straight into the reconcile loop (verified in
-`krateo-rest-dynamic-controller`: `observe_restaction.go`, `mutate_restaction.go`):
+**The shipped `rest-dynamic-controller` handles it without a plugin**, and this
+is how **`KeycloakAuthenticationExecution`** is built: a `RestDefinition` that
+delegates its four lifecycle verbs to **Snowplow `RESTAction`s** —
+`observeApiRef` / `createApiRef` / `updateApiRef` / `deleteApiRef` — wired
+straight into the reconcile loop (verified in `krateo-rest-dynamic-controller`:
+`observe_restaction.go`, `mutate_restaction.go`). One CR manages **one direct
+child** (execution *or* subflow, `spec.subFlow`) of the flow named by
+`spec.flowAlias`; nesting = pointing `flowAlias` at a subflow's alias (aliases
+are realm-unique). Natural key: `(realm, flowAlias, provider)` for executions,
+`(realm, flowAlias, alias)` for subflows.
 
-- **`observeApiRef`** resolves a RESTAction that GETs the flow's executions,
-  selects this one by provider, and composes `.status` (`{id, requirement,
-  index}`). Its `notFoundExpr` (gojq over `{spec,status}`) reports absence ⇒
-  **create**; `upToDateExpr` reports requirement/order drift ⇒ **update**.
-- **`createApiRef`** POSTs the execution. Create is re-invoked each reconcile
+- **`observeApiRef`** (`*-authenticationexecution-observe`) GETs the flow's
+  executions, selects this one among the **level-0** entries and composes
+  `.status` (`{found, id, requirement, index, level, configured}`). Its
+  `notFoundExpr` (gojq over `{spec,status}`) reports absence ⇒ **create**;
+  `upToDateExpr` reports requirement / managed-position / config-presence
+  drift ⇒ **update**.
+- **`createApiRef`** POSTs `.../executions/execution` (`{provider}`) or
+  `.../executions/flow` (`{alias, type}`). Create is re-invoked each reconcile
   until observe reports existence, so the non-idempotent POST is safe *precisely
   because observe gates it* (it fires only when absent).
-- **`updateApiRef`** resolves the id and PUTs the requirement (+ ordering).
-- **`deleteApiRef`** DELETEs by id and is **finalizer-verified**
-  (`externalResourceStillExists` re-probes the get verb) — a RESTAction returns
-  200 even if a teardown stage failed, so success alone isn't proof.
+- **`updateApiRef`** re-lists, PUTs the desired `requirement`, fans out a
+  jq-computed **move-list** (`raise/lower-priority` toward `spec.priority`) via
+  a `dependsOn` iterator, and applies the authenticator `config` (POST
+  `.../executions/{id}/config` when none is attached, idempotent PUT
+  `.../authenticator-config/{id}` otherwise).
+- **`deleteApiRef`** re-lists and DELETEs by id, tolerating an already-gone
+  parent flow (the iterator emits nothing and the finalizer is released).
 
 Snowplow is **not a new dependency**: rdc already resolves GVK→GVR through it
-(pluralizer → `/api-info/names`) and it is the RESTAction resolver. So the
-executions resource is a `RestDefinition` with apiRefs + a few small RESTActions
-— full apply/resync/delete reconcile, no new service, no operator code.
+(pluralizer → `/api-info/names`) and it is the RESTAction resolver. The
+RESTActions reach Keycloak through a snowplow `Endpoint`-shaped Secret
+(`server-url` + the same ESO-rotated admin bearer — a second projection in
+`templates/externalsecret.yaml`). Full apply/resync/delete reconcile, no new
+service, no operator code.
+
+**Documented limitations (all converge, none corrupt):** ordering moves are
+applied one direction per pass and re-checked by the next observe (Keycloak
+reads are synchronous, so position settles within a couple of resyncs); config
+drift is **presence-only** (a value-only change is re-applied on the next
+requirement/order drift, not by itself); duplicate providers under the same
+parent are not distinguishable (declare one CR per `(flowAlias, provider)`).
 
 **What would still force a plugin — guarantees, not verbs:** a non-idempotent
 mutation with *no observe to gate it*; transactional/all-or-nothing across stages
 (Snowplow returns 200 even on an inner-stage failure — RDC has no rollback);
 logic needing I/O, wall-clock, randomness or cross-reconcile state that sandboxed
-gojq can't express; payloads > ~48 KiB or non-HTTP auth wrappers. For Keycloak
-executions only **ordering** (iterating `raise/lower-priority` toward a target
-index) sits near that line — it is expressible as a jq-computed move-list fanned
-out by a RESTAction `dependsOn` iterator and converges over resyncs (Keycloak
-reads are synchronous), so it is the one part to validate live; create /
-requirement / delete are plainly apiRef-expressible.
+gojq can't express; payloads > ~48 KiB or non-HTTP auth wrappers. Keycloak
+executions need none of these.
 
-**This executions resource is the tracked follow-up** (the pure-RD surface above
-lands first) — as apiRefs + RESTActions, not a plugin.
+`samples/20-authentication-mfa.yaml` assembles the canonical **step-up ladder**
+(LoA 1 = password, LoA 2 = OTP, via `conditional-level-of-authentication`
+config) from these CRs; combined with the client's `acr.loa.map` attribute that
+is what makes an `acr_values=gold` login issue a token carrying `acr=2`.
+**Live-cluster reconcile of the executions resource is the remaining validation
+step** (see README → Validation status).
 
 ## Status
 

@@ -70,6 +70,26 @@ restDefinitions:
   requiredaction:
     enabled: true
     kind: KeycloakRequiredAction
+  # One execution (or subflow) INSIDE a flow. Keycloak's executions API is
+  # create-then-mutate with move-op ordering, so this RestDefinition delegates
+  # its lifecycle verbs to Snowplow RESTActions (observeApiRef/createApiRef/
+  # updateApiRef/deleteApiRef) instead of plain OAS verbs. Requires snowplow
+  # (already a rest-dynamic-controller dependency) and the Endpoint-shaped
+  # Secret below (snowplow.endpointSecretName).
+  authenticationexecution:
+    enabled: true
+    kind: KeycloakAuthenticationExecution
+
+# ---------------------------------------------------------------------------
+# Snowplow delegation (used by restDefinitions.authenticationexecution only)
+# ---------------------------------------------------------------------------
+snowplow:
+  # Name of the snowplow Endpoint-shaped Secret (keys: server-url, token) the
+  # KeycloakAuthenticationExecution RESTActions call Keycloak through. Rendered
+  # in the release namespace by templates/externalsecret.yaml (same rotated
+  # admin token as auth.secretName). If auth.externalSecret.enabled is false,
+  # supply this Secret yourself.
+  endpointSecretName: keycloak-admin-endpoint
 
 # Kubernetes API group the generated CRDs register under. GVK = <group>/v1alpha1.
 resourceGroup: keycloak.ogen.krateo.io
