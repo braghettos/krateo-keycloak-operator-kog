@@ -78,35 +78,45 @@ The KOG exposes the *login-configuration* surface too:
 flow.** Keycloak's `authentication/executions` API is **create-then-mutate** —
 an execution is created at `.../executions/execution`, its `requirement` is set
 by a `PUT` to a *different* path (`.../executions`), and ordering is done with
-`raise-priority` / `lower-priority` **move operations**. `rest-dynamic-controller`
-is a flat CRUD engine (it matches path params by field name and sends spec
-fields as a body; it has no verb-sequencing), so a single declarative
-RestDefinition cannot express create + requirement + reorder.
+`raise-priority` / `lower-priority` **move operations**. The plain OAS
+`verbsDescription` (one path per verb) cannot sequence that.
 
-Two mechanisms can add that without touching the operator:
+**The shipped `rest-dynamic-controller` handles it without a plugin.** A
+`RestDefinition` can delegate any of its four lifecycle verbs to a **Snowplow
+`RESTAction`** — `observeApiRef` / `createApiRef` / `updateApiRef` /
+`deleteApiRef` — wired straight into the reconcile loop (verified in
+`krateo-rest-dynamic-controller`: `observe_restaction.go`, `mutate_restaction.go`):
 
-1. **A snowplow `RESTAction`** (leading option). A `RESTAction` is a declarative
-   call-chain: each `api[]` stage has a verb, payload, `endpointRef` (base URL +
-   auth), `dependsOn` (with an `iterator` to fan out over a list) and a JQ
-   `filter`. That expresses `POST flow → POST execution (dependsOn flow) → PUT
-   requirement → raise/lower-priority (iterated)`, threading ids via JQ and
-   authing through an Endpoint backed by the same admin token. Crucially it adds
-   **no new dependency and no new code**: `rest-dynamic-controller` already
-   hard-depends on snowplow at runtime (its pluralizer resolves GVK→GVR via
-   snowplow's `/api-info/names`), and that same snowplow is the RESTAction
-   resolver. A RESTAction is *invocation-driven* (resolved when called), which
-   suits provisioning a flow as a portal/onboarding action (D18).
-2. **A facade plugin** (the `oxide-rest-dynamic-controller-plugin` pattern): a
-   small stateless service that rdc drives with plain CRUD (point the OAS
-   `servers[0].url` at it) while it internally orchestrates the sequence. This
-   buys full apply/resync/delete **reconcile** semantics for the flow itself, at
-   the cost of a new service to build and run. Choose this only if the flow must
-   behave like every other reconciled CR here; it is not needed to avoid a
-   snowplow dependency (there is no new one to avoid).
+- **`observeApiRef`** resolves a RESTAction that GETs the flow's executions,
+  selects this one by provider, and composes `.status` (`{id, requirement,
+  index}`). Its `notFoundExpr` (gojq over `{spec,status}`) reports absence ⇒
+  **create**; `upToDateExpr` reports requirement/order drift ⇒ **update**.
+- **`createApiRef`** POSTs the execution. Create is re-invoked each reconcile
+  until observe reports existence, so the non-idempotent POST is safe *precisely
+  because observe gates it* (it fires only when absent).
+- **`updateApiRef`** resolves the id and PUTs the requirement (+ ordering).
+- **`deleteApiRef`** DELETEs by id and is **finalizer-verified**
+  (`externalResourceStillExists` re-probes the get verb) — a RESTAction returns
+  200 even if a teardown stage failed, so success alone isn't proof.
 
-**Managing individual executions/subflows is tracked as the follow-up to this
-work** (the pure-RD surface above lands first); the RESTAction is the current
-lead.
+Snowplow is **not a new dependency**: rdc already resolves GVK→GVR through it
+(pluralizer → `/api-info/names`) and it is the RESTAction resolver. So the
+executions resource is a `RestDefinition` with apiRefs + a few small RESTActions
+— full apply/resync/delete reconcile, no new service, no operator code.
+
+**What would still force a plugin — guarantees, not verbs:** a non-idempotent
+mutation with *no observe to gate it*; transactional/all-or-nothing across stages
+(Snowplow returns 200 even on an inner-stage failure — RDC has no rollback);
+logic needing I/O, wall-clock, randomness or cross-reconcile state that sandboxed
+gojq can't express; payloads > ~48 KiB or non-HTTP auth wrappers. For Keycloak
+executions only **ordering** (iterating `raise/lower-priority` toward a target
+index) sits near that line — it is expressible as a jq-computed move-list fanned
+out by a RESTAction `dependsOn` iterator and converges over resyncs (Keycloak
+reads are synchronous), so it is the one part to validate live; create /
+requirement / delete are plainly apiRef-expressible.
+
+**This executions resource is the tracked follow-up** (the pure-RD surface above
+lands first) — as apiRefs + RESTActions, not a plugin.
 
 ## Status
 

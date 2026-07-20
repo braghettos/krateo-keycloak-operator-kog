@@ -37,11 +37,12 @@ level) — expressed directly on `KeycloakClient.attributes`, so issued tokens
 carry the `acr` claim per level. See `samples/20-authentication-mfa.yaml`.
 
 > Managing the individual **executions/subflows inside** a flow (requirement +
-> ordering) is intentionally out of scope for a plain RestDefinition — Keycloak's
-> executions API is create-then-mutate with move-op ordering. See
-> [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#authentication-flows--executions-mfa--acr)
-> for the orchestration follow-up (a snowplow `RESTAction` — the lead option,
-> since snowplow is already a hard rdc dependency — or a facade plugin).
+> ordering) is the tracked follow-up. Keycloak's executions API is
+> create-then-mutate, which the shipped `rest-dynamic-controller` handles by
+> **delegating observe/create/update/delete to Snowplow `RESTAction`s**
+> (`observeApiRef`/`createApiRef`/`updateApiRef`/`deleteApiRef`) — full reconcile,
+> no plugin. See
+> [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#authentication-flows--executions-mfa--acr).
 
 > **Mappers on a client you manage here** are best declared **inline** on the
 > `KeycloakClient` via its `protocolMappers` array — fully declarative, no
