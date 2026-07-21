@@ -37,9 +37,12 @@ explicit preconditions rather than prose.
    CRs authenticate.
 4. **The `acr-app` client secret.** `acr-app` is confidential; read the secret
    Keycloak generated (`kubectl get secret` / admin console) into `CLIENT_SECRET`.
-5. **A test user with password + TOTP** in `mfa-demo` (LoA-2 is OTP):
+5. **A test user with password + TOTP** in `mfa-demo` (LoA-2 is OTP). Generate
+   a throwaway raw TOTP secret once and reuse the SAME value for the seeder and
+   the mint (both derive codes from it):
    ```bash
-   TOTP_SECRET=MYRAWTOTPSECRET123 bash demo/acr-via-crs/seed-user-otp.sh
+   export TOTP_SECRET="$(openssl rand -hex 16)"   # throwaway demo secret
+   bash demo/acr-via-crs/seed-user-otp.sh
    ```
 
 ## Run
@@ -47,7 +50,7 @@ explicit preconditions rather than prose.
 ```bash
 export KC_URL=https://keycloak.example        # reachable from your shell
 export CLIENT_SECRET=<acr-app client secret>
-export TOTP_SECRET=MYRAWTOTPSECRET123          # same value passed to the seeder
+# TOTP_SECRET still exported from the seeding step above
 export REDIRECT_URI=https://app.example/*      # a redirect URI registered on acr-app
 
 bash demo/acr-via-crs/apply-and-mint.sh
