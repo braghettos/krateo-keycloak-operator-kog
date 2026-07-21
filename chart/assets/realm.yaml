@@ -56,6 +56,83 @@ components:
           type: boolean
         defaultLocale:
           type: string
+        otpPolicyType:
+          type: string
+          description: totp or hotp.
+        otpPolicyAlgorithm:
+          type: string
+          description: e.g. HmacSHA1, HmacSHA256, HmacSHA512.
+        otpPolicyDigits:
+          type: integer
+          description: Number of digits in the OTP (6 or 8).
+        otpPolicyPeriod:
+          type: integer
+          description: TOTP time step in seconds (e.g. 30).
+        otpPolicyLookAheadWindow:
+          type: integer
+        otpPolicyInitialCounter:
+          type: integer
+          description: HOTP initial counter.
+        otpPolicyCodeReusable:
+          type: boolean
+        webAuthnPolicyRpEntityName:
+          type: string
+        webAuthnPolicyRpId:
+          type: string
+        webAuthnPolicySignatureAlgorithms:
+          type: array
+          items:
+            type: string
+        webAuthnPolicyAttestationConveyancePreference:
+          type: string
+          description: none, indirect or direct.
+        webAuthnPolicyAuthenticatorAttachment:
+          type: string
+          description: platform or cross-platform.
+        webAuthnPolicyRequireResidentKey:
+          type: string
+          description: Yes/No/not specified.
+        webAuthnPolicyUserVerificationRequirement:
+          type: string
+          description: required, preferred or discouraged.
+        webAuthnPolicyCreateTimeout:
+          type: integer
+        webAuthnPolicyAvoidSameAuthenticatorRegister:
+          type: boolean
+        webAuthnPolicyAcceptableAaguids:
+          type: array
+          items:
+            type: string
+        webAuthnPolicyPasswordlessRpEntityName:
+          type: string
+        webAuthnPolicyPasswordlessRpId:
+          type: string
+        webAuthnPolicyPasswordlessSignatureAlgorithms:
+          type: array
+          items:
+            type: string
+        webAuthnPolicyPasswordlessAttestationConveyancePreference:
+          type: string
+        webAuthnPolicyPasswordlessAuthenticatorAttachment:
+          type: string
+        webAuthnPolicyPasswordlessRequireResidentKey:
+          type: string
+        webAuthnPolicyPasswordlessUserVerificationRequirement:
+          type: string
+        webAuthnPolicyPasswordlessCreateTimeout:
+          type: integer
+        webAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister:
+          type: boolean
+        webAuthnPolicyPasswordlessAcceptableAaguids:
+          type: array
+          items:
+            type: string
+        browserFlow:
+          type: string
+          description: Alias of the realm browser flow (e.g. a managed step-up flow).
+        directGrantFlow:
+          type: string
+          description: Alias of the realm direct-grant flow.
         attributes:
           type: object
           additionalProperties:

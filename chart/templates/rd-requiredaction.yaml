@@ -1,0 +1,49 @@
+{{- if .Values.restDefinitions.requiredaction.enabled }}
+apiVersion: ogen.krateo.io/v1alpha1
+kind: RestDefinition
+metadata:
+  name: {{ .Release.Name }}-requiredaction
+  labels:
+    {{- include "keycloak-config-kog.labels" . | nindent 4 }}
+  {{- if .Values.verbose }}
+  annotations:
+    krateo.io/connector-verbose: "true"
+  {{- end }}
+spec:
+  oasPath: configmap://{{ .Release.Namespace }}/{{ .Release.Name }}-requiredaction/requiredaction.yaml
+  resourceGroup: {{ .Values.resourceGroup }}
+  resource:
+    kind: {{ .Values.restDefinitions.requiredaction.kind }}
+    # Required-action provider (e.g. CONFIGURE_TOTP, webauthn-register). `alias`
+    # is a user-supplied natural key addressable directly (no server UUID). Parent
+    # scope: {realm}. Base actions ship built-in, so reconcile usually observes
+    # (findby) + updates (PUT) their enabled/default/priority state; `create`
+    # registers a brand-new provider-based action.
+    identifiers:
+      - alias
+    verbsDescription:
+      - action: create
+        method: POST
+        path: /admin/realms/{realm}/authentication/register-required-action
+      - action: findby
+        method: GET
+        path: /admin/realms/{realm}/authentication/required-actions
+      - action: get
+        method: GET
+        path: /admin/realms/{realm}/authentication/required-actions/{alias}
+        requestFieldMapping:
+          - inPath: alias
+            inCustomResource: spec.alias
+      - action: update
+        method: PUT
+        path: /admin/realms/{realm}/authentication/required-actions/{alias}
+        requestFieldMapping:
+          - inPath: alias
+            inCustomResource: spec.alias
+      - action: delete
+        method: DELETE
+        path: /admin/realms/{realm}/authentication/required-actions/{alias}
+        requestFieldMapping:
+          - inPath: alias
+            inCustomResource: spec.alias
+{{- end }}

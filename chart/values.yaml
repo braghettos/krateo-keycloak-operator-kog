@@ -63,6 +63,13 @@ restDefinitions:
   idpmapper:
     enabled: true
     kind: KeycloakIdentityProviderMapper
+  # Authentication / MFA config surface (see docs/ARCHITECTURE.md).
+  authenticationflow:
+    enabled: true
+    kind: KeycloakAuthenticationFlow
+  requiredaction:
+    enabled: true
+    kind: KeycloakRequiredAction
 
 # Kubernetes API group the generated CRDs register under. GVK = <group>/v1alpha1.
 resourceGroup: keycloak.ogen.krateo.io

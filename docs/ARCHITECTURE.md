@@ -57,6 +57,67 @@ the server the blueprint stands up.
 5. **`Keycloak`-prefixed CR kinds** — avoids crdgen collisions with same-named
    lowercase body properties (the Nova `Server` vs `server` failure mode).
 
+## Authentication flows & executions (MFA / ACR)
+
+The KOG exposes the *login-configuration* surface too:
+
+- **`KeycloakRealm`** carries the **OTP** (`otpPolicy*`) and **WebAuthn**
+  (`webAuthnPolicy*`, incl. passwordless) **policy** fields, plus top-level flow
+  bindings (`browserFlow`, `directGrantFlow`).
+- **`KeycloakRequiredAction`** manages required-action providers by `alias`
+  (e.g. `CONFIGURE_TOTP`, `webauthn-register`). Base actions ship built-in, so
+  reconcile normally observes + updates their enabled/default/priority state.
+- **`KeycloakAuthenticationFlow`** manages a **top-level flow container**
+  (`alias` + metadata), addressed by natural key like the other resources.
+- **ACR → LoA** is a standard **client attribute** (`acr.loa.map`) already
+  expressible on `KeycloakClient.attributes` — no new field needed; set
+  `default.acr.values` for the client's default requested level. This is what
+  makes issued tokens carry the `acr` claim per level.
+
+**Deliberately not modelled as a plain RestDefinition: the executions *inside* a
+flow.** Keycloak's `authentication/executions` API is **create-then-mutate** —
+an execution is created at `.../executions/execution`, its `requirement` is set
+by a `PUT` to a *different* path (`.../executions`), and ordering is done with
+`raise-priority` / `lower-priority` **move operations**. The plain OAS
+`verbsDescription` (one path per verb) cannot sequence that.
+
+**The shipped `rest-dynamic-controller` handles it without a plugin.** A
+`RestDefinition` can delegate any of its four lifecycle verbs to a **Snowplow
+`RESTAction`** — `observeApiRef` / `createApiRef` / `updateApiRef` /
+`deleteApiRef` — wired straight into the reconcile loop (verified in
+`krateo-rest-dynamic-controller`: `observe_restaction.go`, `mutate_restaction.go`):
+
+- **`observeApiRef`** resolves a RESTAction that GETs the flow's executions,
+  selects this one by provider, and composes `.status` (`{id, requirement,
+  index}`). Its `notFoundExpr` (gojq over `{spec,status}`) reports absence ⇒
+  **create**; `upToDateExpr` reports requirement/order drift ⇒ **update**.
+- **`createApiRef`** POSTs the execution. Create is re-invoked each reconcile
+  until observe reports existence, so the non-idempotent POST is safe *precisely
+  because observe gates it* (it fires only when absent).
+- **`updateApiRef`** resolves the id and PUTs the requirement (+ ordering).
+- **`deleteApiRef`** DELETEs by id and is **finalizer-verified**
+  (`externalResourceStillExists` re-probes the get verb) — a RESTAction returns
+  200 even if a teardown stage failed, so success alone isn't proof.
+
+Snowplow is **not a new dependency**: rdc already resolves GVK→GVR through it
+(pluralizer → `/api-info/names`) and it is the RESTAction resolver. So the
+executions resource is a `RestDefinition` with apiRefs + a few small RESTActions
+— full apply/resync/delete reconcile, no new service, no operator code.
+
+**What would still force a plugin — guarantees, not verbs:** a non-idempotent
+mutation with *no observe to gate it*; transactional/all-or-nothing across stages
+(Snowplow returns 200 even on an inner-stage failure — RDC has no rollback);
+logic needing I/O, wall-clock, randomness or cross-reconcile state that sandboxed
+gojq can't express; payloads > ~48 KiB or non-HTTP auth wrappers. For Keycloak
+executions only **ordering** (iterating `raise/lower-priority` toward a target
+index) sits near that line — it is expressible as a jq-computed move-list fanned
+out by a RESTAction `dependsOn` iterator and converges over resyncs (Keycloak
+reads are synchronous), so it is the one part to validate live; create /
+requirement / delete are plainly apiRef-expressible.
+
+**This executions resource is the tracked follow-up** (the pure-RD surface above
+lands first) — as apiRefs + RESTActions, not a plugin.
+
 ## Status
 
 Both charts `helm lint` clean and `helm template` to valid manifests. The KOG's

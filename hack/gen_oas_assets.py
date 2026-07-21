@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate KOG-friendly OpenAPI 3.0 subsets for six Keycloak Admin API resources.
+"""Generate KOG-friendly OpenAPI 3.0 subsets for the Keycloak Admin API resources.
 
 Each emitted asset:
   * declares the `bearer` (http/bearer) securityScheme that the upstream
@@ -43,6 +43,41 @@ SCHEMAS = {
         "ssoSessionMaxLifespan": prop("integer", "Shared-SSO max session lifespan (seconds)."),
         "internationalizationEnabled": prop("boolean"),
         "defaultLocale": prop("string"),
+        # --- MFA policy: OTP (TOTP/HOTP) ------------------------------------
+        "otpPolicyType": prop("string", "totp or hotp."),
+        "otpPolicyAlgorithm": prop("string", "e.g. HmacSHA1, HmacSHA256, HmacSHA512."),
+        "otpPolicyDigits": prop("integer", "Number of digits in the OTP (6 or 8)."),
+        "otpPolicyPeriod": prop("integer", "TOTP time step in seconds (e.g. 30)."),
+        "otpPolicyLookAheadWindow": prop("integer"),
+        "otpPolicyInitialCounter": prop("integer", "HOTP initial counter."),
+        "otpPolicyCodeReusable": prop("boolean"),
+        # --- MFA policy: WebAuthn (two-factor) ------------------------------
+        "webAuthnPolicyRpEntityName": prop("string"),
+        "webAuthnPolicyRpId": prop("string"),
+        "webAuthnPolicySignatureAlgorithms": STRARR,
+        "webAuthnPolicyAttestationConveyancePreference": prop("string", "none, indirect or direct."),
+        "webAuthnPolicyAuthenticatorAttachment": prop("string", "platform or cross-platform."),
+        "webAuthnPolicyRequireResidentKey": prop("string", "Yes/No/not specified."),
+        "webAuthnPolicyUserVerificationRequirement": prop("string", "required, preferred or discouraged."),
+        "webAuthnPolicyCreateTimeout": prop("integer"),
+        "webAuthnPolicyAvoidSameAuthenticatorRegister": prop("boolean"),
+        "webAuthnPolicyAcceptableAaguids": STRARR,
+        # --- MFA policy: WebAuthn (passwordless) ----------------------------
+        "webAuthnPolicyPasswordlessRpEntityName": prop("string"),
+        "webAuthnPolicyPasswordlessRpId": prop("string"),
+        "webAuthnPolicyPasswordlessSignatureAlgorithms": STRARR,
+        "webAuthnPolicyPasswordlessAttestationConveyancePreference": prop("string"),
+        "webAuthnPolicyPasswordlessAuthenticatorAttachment": prop("string"),
+        "webAuthnPolicyPasswordlessRequireResidentKey": prop("string"),
+        "webAuthnPolicyPasswordlessUserVerificationRequirement": prop("string"),
+        "webAuthnPolicyPasswordlessCreateTimeout": prop("integer"),
+        "webAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister": prop("boolean"),
+        "webAuthnPolicyPasswordlessAcceptableAaguids": STRARR,
+        # --- Top-level flow bindings (point a realm at a managed flow) ------
+        "browserFlow": prop("string", "Alias of the realm browser flow (e.g. a managed step-up flow)."),
+        "directGrantFlow": prop("string", "Alias of the realm direct-grant flow."),
+        # Free-form realm attributes. Also carries the realm-default
+        # `acr.loa.map` (ACR -> Level-of-Authentication) when set realm-wide.
         "attributes": STRMAP,
     }),
     "client": ("ClientRepresentation", {
@@ -116,6 +151,29 @@ SCHEMAS = {
         "identityProviderMapper": prop("string", "e.g. hardcoded-group-idp-mapper, oidc-username-idp-mapper"),
         "config": STRMAP,
     }),
+    # Top-level authentication flow *container* (alias + metadata). Individual
+    # executions/subflows inside a flow are NOT managed here: the Keycloak
+    # executions API is create-then-mutate with move-op ordering, which a single
+    # declarative RestDefinition cannot express — see docs/ARCHITECTURE.md.
+    "authenticationflow": ("AuthenticationFlowRepresentation", {
+        "alias": prop("string", "Flow alias. Natural key (findby)."),
+        "description": prop("string"),
+        "providerId": prop("string", "Flow type; top-level flows use basic-flow."),
+        "topLevel": prop("boolean", "True for a realm-bindable top-level flow."),
+        "builtIn": prop("boolean"),
+    }),
+    # Required-action provider (e.g. CONFIGURE_TOTP, webauthn-register). Realms
+    # ship the base actions built-in; this manages their enabled/default/priority
+    # state (and can register new provider-based actions). Addressed by alias.
+    "requiredaction": ("RequiredActionProviderRepresentation", {
+        "alias": prop("string", "Required-action alias, e.g. CONFIGURE_TOTP. Natural key."),
+        "name": prop("string", "Human-readable name."),
+        "providerId": prop("string", "Provider id backing the action."),
+        "enabled": prop("boolean"),
+        "defaultAction": prop("boolean", "Applied to every new user when true."),
+        "priority": prop("integer"),
+        "config": STRMAP,
+    }),
 }
 
 # Extra named component schemas referenced via $ref by a resource's main schema.
@@ -138,12 +196,13 @@ EXTRA_SCHEMAS = {
 # requiredfields per resource (the natural key)
 REQUIRED = {"realm": ["realm"], "client": ["clientId"], "protocolmapper": ["name"],
             "clientscope": ["name"], "group": ["name"], "identityprovider": ["alias"],
-            "idpmapper": ["name"]}
+            "idpmapper": ["name"], "authenticationflow": ["alias"], "requiredaction": ["alias"]}
 
-# read-only fields surfaced in status (server-generated)
+# read-only fields surfaced in status (server-generated). None = the resource is
+# addressed directly by its natural key and has no separate server id.
 READONLY = {"realm": "id", "client": "id", "protocolmapper": "id",
             "clientscope": "id", "group": "id", "identityprovider": "internalId",
-            "idpmapper": "id"}
+            "idpmapper": "id", "authenticationflow": "id", "requiredaction": None}
 
 # (collection_path, item_path) — item uses {id} for uuid resources, natural key otherwise
 PATHS = {
@@ -157,12 +216,23 @@ PATHS = {
                          "/admin/realms/{realm}/identity-provider/instances/{alias}"),
     "idpmapper":        ("/admin/realms/{realm}/identity-provider/instances/{alias}/mappers",
                          "/admin/realms/{realm}/identity-provider/instances/{alias}/mappers/{id}"),
+    "authenticationflow": ("/admin/realms/{realm}/authentication/flows",
+                           "/admin/realms/{realm}/authentication/flows/{id}"),
+    "requiredaction":   ("/admin/realms/{realm}/authentication/required-actions",
+                         "/admin/realms/{realm}/authentication/required-actions/{alias}"),
+}
+
+# Resources whose create endpoint is NOT the collection path. Keycloak registers
+# a required action via a dedicated sub-path; the collection path only lists.
+CREATE_PATHS = {
+    "requiredaction": "/admin/realms/{realm}/authentication/register-required-action",
 }
 
 TITLES = {
     "realm": "Realm", "client": "Client", "protocolmapper": "Protocol Mapper",
     "clientscope": "Client Scope", "group": "Group", "identityprovider": "Identity Provider",
-    "idpmapper": "Identity Provider Mapper",
+    "idpmapper": "Identity Provider Mapper", "authenticationflow": "Authentication Flow",
+    "requiredaction": "Required Action",
 }
 
 def path_params(path):
@@ -172,11 +242,13 @@ def path_params(path):
 def make_oas(key):
     schema_name, props = SCHEMAS[key]
     coll, item = PATHS[key]
-    ro = READONLY[key]
-    # status schema: add read-only id field
+    ro = READONLY.get(key)
+    # status schema: add read-only id field (only for resources that carry a
+    # server-generated identifier distinct from their natural key)
     body_props = dict(props)
     full_props = dict(body_props)
-    full_props[ro] = prop("string", "Server-generated identifier (read-only).", readOnly=True)
+    if ro:
+        full_props[ro] = prop("string", "Server-generated identifier (read-only).", readOnly=True)
 
     components = {
         "securitySchemes": {"bearer": {"type": "http", "scheme": "bearer",
@@ -198,17 +270,26 @@ def make_oas(key):
     # oasgen-provider only reads path parameters declared at the OPERATION level
     # (verified on a live cluster: path-item-level `parameters` are ignored, so
     # the param never lands in the generated CRD spec). Attach params per-op.
+    create_path = CREATE_PATHS.get(key, coll)
     coll_params = [param(p) for p in path_params(coll)]
     item_params = [param(p) for p in path_params(item)]
+    create_params = [param(p) for p in path_params(create_path)]
+
+    post_op = {"operationId": f"create{key.title()}", "summary": f"Create {TITLES[key]}",
+               "tags": [key], "parameters": create_params, "requestBody": json_body,
+               "responses": {"201": {"description": "Created. Identifier returned via Location header."}}}
+    list_op = {"operationId": f"list{key.title()}", "summary": f"List/find {TITLES[key]}",
+               "tags": [key], "parameters": coll_params, "responses": arr_resp}
 
     paths = collections.OrderedDict()
-    # collection: POST (create) + GET (findby/list)
-    paths[coll] = {}
-    paths[coll]["post"] = {"operationId": f"create{key.title()}", "summary": f"Create {TITLES[key]}",
-                           "tags": [key], "parameters": coll_params, "requestBody": json_body,
-                           "responses": {"201": {"description": "Created. Identifier returned via Location header."}}}
-    paths[coll]["get"] = {"operationId": f"list{key.title()}", "summary": f"List/find {TITLES[key]}",
-                          "tags": [key], "parameters": coll_params, "responses": arr_resp}
+    if create_path == coll:
+        # collection: POST (create) + GET (findby/list) on the same path
+        paths[coll] = {"post": post_op, "get": list_op}
+    else:
+        # create uses a dedicated endpoint (e.g. register-required-action);
+        # the collection path only serves findby/list
+        paths[create_path] = {"post": post_op}
+        paths[coll] = {"get": list_op}
     # item: GET/PUT/DELETE
     paths[item] = {"get": {"operationId": f"get{key.title()}", "summary": f"Get {TITLES[key]}",
                            "tags": [key], "parameters": item_params, "responses": json_resp("200", "OK")},
