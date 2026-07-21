@@ -131,6 +131,46 @@ Secret (`server-url` + the same ESO-rotated admin bearer — a second projection
 in `templates/externalsecret.yaml`). Full apply/resync/delete reconcile, no new
 service, no operator code.
 
+**Validated in-cluster (e2e, 2026-07-21).** The full chain ran on a kind
+cluster: published images only (`krateo-oasgen-provider` 0.12.0 with
+`rdc.image.tag` 0.11.0, `krateo-snowplow` 1.7.13 cache-off, `krateo-authn`
+0.24.0), the apiRef wiring supplied purely via the oasgen chart's `rdc.env` /
+`rdc.volumes` values (no template fork), the apiRef-capable RestDefinition CRD
+applied from the oasgen code repo (the published CRD chart lags). `kubectl
+apply` of `samples/20-authentication-mfa.yaml` converged the complete 9-CR
+step-up ladder into a live Keycloak 26 — exact order by declarative priority,
+requirements, both LoA configs with correct values — and `kubectl delete` held
+the finalizer until the single-execution GET returned a real 404. Mid-run,
+Keycloak restarted and wiped its dev database; the controllers **rebuilt the
+entire realm/flow/ladder from the CRs unattended**.
+
+Operational findings from that run (wire these into any real deployment):
+
+1. **The ESO token rotation is necessary, not optional.** A static admin token
+   dies with its Keycloak *session* (default 30 min idle) and with any Keycloak
+   restart, long before its own `exp` — symptom: every reconcile 401s.
+2. **authn needs probe headroom**: its startup does a CSR round-trip (~30s on a
+   loaded node) and its stock liveness probe (no `initialDelaySeconds`, 1s
+   timeout) kills it exactly as it becomes ready, in a loop. Patch
+   `initialDelaySeconds` ≥ 60.
+3. **Serialize the first login per identity**: concurrent rdc logins reuse the
+   same CSR name and can store a mismatched cert/key in the
+   `<identity>-clientconfig` Secret (snowplow then 500s with "tls: private key
+   does not match public key"). Delete the Secret + CSR and restart the single
+   controller to re-mint cleanly.
+4. **oasgen (≤0.12.0) does not detect OAS ConfigMap content changes** and keeps
+   the parsed document cached in-process; a generated CRD also survives
+   RestDefinition deletion. To pick up an asset schema change: delete the
+   instances + both generated CRDs + the RestDefinition, restart oasgen, then
+   re-apply (the `status.oasHash` work upstream addresses this properly). If a
+   provider restart interrupts a generation, clear the
+   `krateo.io/external-create-pending` annotation on the RestDefinition as its
+   status message instructs.
+5. **Status field types come from the get/findby response schema** — fields the
+   generator cannot resolve default to `string`, and mismatched projections are
+   rejected by the API server. This chart's asset declares the observe-composed
+   fields on the get response schema for exactly that reason.
+
 **Documented limitations (all converge, none corrupt):** priority drift is
 converged by recreate — the recreated execution lands `DISABLED` (and a
 recreated **subflow** lands empty; its children CRs re-create themselves on

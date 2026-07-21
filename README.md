@@ -136,8 +136,10 @@ resources (`KeycloakRealm`/`KeycloakClient`) and are exercised by
 `helm template` + schema checks. `KeycloakRequiredAction` (natural-key `alias`,
 direct) and `KeycloakAuthenticationFlow` (natural-key `alias` → `findby` → `id`)
 reuse the exact addressing patterns already proven by `KeycloakIdentityProvider`
-and `KeycloakClient` respectively; **live-cluster reconcile of these two is
-pending**. One known Keycloak-specific caveat: `register-required-action` is the
+and `KeycloakClient` respectively. `KeycloakAuthenticationFlow` and
+`KeycloakRealm` **reconciled in-cluster in the 2026-07-21 e2e** (Ready=True,
+flow + realm created and rebuilt after a Keycloak restart);
+`KeycloakRequiredAction` live reconcile remains unverified. One known Keycloak-specific caveat: `register-required-action` is the
 create endpoint for a brand-new action, but the base actions (`CONFIGURE_TOTP`,
 `webauthn-register`) ship built-in, so reconcile normally observes + updates
 rather than creates.
@@ -157,13 +159,21 @@ cheapest to closest-to-production:
    finalizer-style 404 deletion. Declarative `priority` at create, priority
    immutability and recreate-convergence are live-verified facts here. This still
    talks to Keycloak **directly** — it does not go through the controllers.
-3. **In-cluster reconcile + acr=2** (`demo/acr-via-crs`) — the executable script
-   that `kubectl apply`s the sample CRs, waits for the control plane
-   (oasgen + rdc + snowplow) to build the ladder, and mints an `acr_values=gold`
-   token on client `acr-app` asserting `acr=2`. **This is the separately-gated
-   live-reconcile step** and needs a full Krateo control plane with
-   `URL_SNOWPLOW`/`URL_AUTHN` wired into the rdc deployment — it is *not* claimed
-   as proven here.
+3. **In-cluster reconcile** — **PROVEN on a kind cluster (2026-07-21)**: with
+   published images only (oasgen-provider 0.12.0 / rdc 0.11.0 / snowplow 1.7.13
+   cache-off / authn 0.24.0) and the apiRef wiring supplied purely via the
+   oasgen chart's `rdc.env`/`rdc.volumes` values, `kubectl apply` of the sample
+   converged the complete 9-CR step-up ladder into a live Keycloak 26 — exact
+   order by declarative priority, requirements, both LoA configs with correct
+   values — and `kubectl delete` held the finalizer until the single-execution
+   GET returned a real 404. Mid-run Keycloak restarted and wiped its dev
+   database; the controllers rebuilt the whole ladder from the CRs unattended.
+   Operational findings (authn probe headroom, ESO-rotation-is-mandatory,
+   oasgen OAS-cache caveats) are in `docs/ARCHITECTURE.md` → "Validated
+   in-cluster". The `demo/acr-via-crs` **token mint** (`acr_values=gold` ⇒
+   `acr=2` on client `acr-app`) was not re-run in that e2e — the CR-built
+   ladder is structurally identical to the script-built one that already
+   produced a live `acr=2` token in `demo/mfa-stepup`.
 
 Resource-specific note surfaced by validation:
 
