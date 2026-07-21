@@ -76,10 +76,10 @@ The KOG exposes the *login-configuration* surface too:
 
 **The executions *inside* a flow are not a plain RestDefinition.** Keycloak's
 `authentication/executions` API is **create-then-mutate** — an execution is
-created at `.../executions/execution`, its `requirement` is set by a `PUT` to a
-*different* path (`.../executions`), and ordering is done with `raise-priority`
-/ `lower-priority` **move operations**. The plain OAS `verbsDescription` (one
-path per verb) cannot sequence that.
+created at `.../executions/execution` (its `priority` ordering weight is honored
+at create — verified live on 26.0.8 — but **immutable afterwards**), and its
+`requirement` is set by a `PUT` to a *different* path (`.../executions`). The
+plain OAS `verbsDescription` (one path per verb) cannot sequence that.
 
 **The shipped `rest-dynamic-controller` handles it without a plugin**, and this
 is how **`KeycloakAuthenticationExecution`** is built: a `RestDefinition` that
@@ -94,35 +94,57 @@ are realm-unique). Natural key: `(realm, flowAlias, provider)` for executions,
 
 - **`observeApiRef`** (`*-authenticationexecution-observe`) GETs the flow's
   executions, selects this one among the **level-0** entries and composes
-  `.status` (`{found, id, requirement, index, level, configured}`). Its
-  `notFoundExpr` (gojq over `{spec,status}`) reports absence ⇒ **create**;
-  `upToDateExpr` reports requirement / managed-position / config-presence
+  `.status` (`{found, id, requirement, index, level, priority, configured}`).
+  Its `notFoundExpr` (gojq over `{spec,status}`) reports absence ⇒ **create**;
+  `upToDateExpr` reports requirement / priority / config-presence
   drift ⇒ **update**.
-- **`createApiRef`** POSTs `.../executions/execution` (`{provider}`) or
-  `.../executions/flow` (`{alias, type}`). Create is re-invoked each reconcile
+- **`createApiRef`** POSTs `.../executions/execution` (`{provider, priority?}`)
+  or `.../executions/flow` (`{alias, type, priority?}`) — `priority` is
+  Keycloak's native ordering weight, so the child lands in the right position
+  **by construction** (no move operations). Create is re-invoked each reconcile
   until observe reports existence, so the non-idempotent POST is safe *precisely
   because observe gates it* (it fires only when absent).
-- **`updateApiRef`** re-lists, PUTs the desired `requirement`, fans out a
-  jq-computed **move-list** (`raise/lower-priority` toward `spec.priority`) via
-  a `dependsOn` iterator, and applies the authenticator `config` (POST
-  `.../executions/{id}/config` when none is attached, idempotent PUT
+- **`updateApiRef`** re-lists, PUTs the desired `requirement`, converges
+  **priority drift by delete + re-create** (priority is immutable in Keycloak;
+  two iterator stages gated on the same drift condition — an empty iterator
+  array is the "does not apply" case), and applies the authenticator `config`
+  (POST `.../executions/{id}/config` when none is attached, idempotent PUT
   `.../authenticator-config/{id}` otherwise).
 - **`deleteApiRef`** re-lists and DELETEs by id, tolerating an already-gone
-  parent flow (the iterator emits nothing and the finalizer is released).
+  parent flow (the iterator emits nothing and the finalizer is released). The
+  RestDefinition also declares a plain **get verb** on
+  `.../authentication/executions/{executionId}` (`executionId` ← `status.id`),
+  so the finalizer is released only once that GET returns a real **404**.
 
-Snowplow is **not a new dependency**: rdc already resolves GVK→GVR through it
-(pluralizer → `/api-info/names`) and it is the RESTAction resolver. The
-RESTActions reach Keycloak through a snowplow `Endpoint`-shaped Secret
-(`server-url` + the same ESO-rotated admin bearer — a second projection in
-`templates/externalsecret.yaml`). Full apply/resync/delete reconcile, no new
+**Deployment prerequisites (the honest dependency picture):** the RESTActions
+are resolved by **snowplow** and rdc authenticates to it via the **authn**
+service — both part of a standard Krateo install, but the **stock oasgen-provider
+rdc templates do not wire them**: the cluster's `rdc-deployment` /
+`rdc-configmap` ConfigMaps must set `URL_SNOWPLOW` and `URL_AUTHN` and project an
+authn-audience ServiceAccount token (default path
+`/var/run/secrets/krateo.io/serviceaccount/token`), and the controller identity
+needs a `<identity>-clientconfig` Secret in the authn namespace plus RBAC `get`
+on `restactions.templates.krateo.io` in this chart's namespace. With
+`URL_SNOWPLOW` unset, every reconcile of this resource hard-errors (no OAS
+fallback). The RESTActions reach Keycloak through a snowplow `Endpoint`-shaped
+Secret (`server-url` + the same ESO-rotated admin bearer — a second projection
+in `templates/externalsecret.yaml`). Full apply/resync/delete reconcile, no new
 service, no operator code.
 
-**Documented limitations (all converge, none corrupt):** ordering moves are
-applied one direction per pass and re-checked by the next observe (Keycloak
-reads are synchronous, so position settles within a couple of resyncs); config
-drift is **presence-only** (a value-only change is re-applied on the next
-requirement/order drift, not by itself); duplicate providers under the same
-parent are not distinguishable (declare one CR per `(flowAlias, provider)`).
+**Documented limitations (all converge, none corrupt):** priority drift is
+converged by recreate — the recreated execution lands `DISABLED` (and a
+recreated **subflow** lands empty; its children CRs re-create themselves on
+their following reconciles), so requirement/config settle one-two resyncs later;
+config drift is **presence-only** (a value-only change is re-applied on the next
+requirement/priority drift, not by itself); duplicate providers under the same
+parent are not distinguishable (declare one CR per `(flowAlias, provider)`);
+the **natural-key fields are create-only** — editing `provider`/`flowAlias`/
+`alias`/`subFlow` on a live CR re-targets the reconcile at a *new* execution and
+orphans the old one (delete + re-create the CR instead); mutation-stage errors
+accumulate under `errorKey`s inside the RESTAction resolve but are **not
+projected into the CR status** — degradation shows up as the observe reporting
+the same absence/drift on the next reconcile (level-based convergence), with
+details in the rdc/snowplow logs.
 
 **What would still force a plugin — guarantees, not verbs:** a non-idempotent
 mutation with *no observe to gate it*; transactional/all-or-nothing across stages

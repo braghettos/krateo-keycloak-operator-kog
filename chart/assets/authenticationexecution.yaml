@@ -5,12 +5,15 @@ info:
   description: Hand-curated OpenAPI 3.0 subset of the Keycloak Admin REST API for a single
     execution (or subflow) INSIDE an authentication flow. Unlike the other assets, this
     resource is NOT reconciled through plain verbs alone - Keycloak's executions API is
-    create-then-mutate with move-op ordering - so the RestDefinition delegates its
-    lifecycle to Snowplow RESTActions (observeApiRef/createApiRef/updateApiRef/
-    deleteApiRef). This OAS exists to (a) generate the CRD spec shape from the create
-    request body and (b) declare the findby verb the controller requires for level-based
-    convergence. Declares the http/bearer security scheme that the upstream Keycloak OAS
-    omits.
+    create-then-mutate (requirement is set by a separate flow-scoped PUT, priority is
+    immutable after create) - so the RestDefinition delegates its lifecycle to Snowplow
+    RESTActions (observeApiRef/createApiRef/updateApiRef/deleteApiRef). This OAS exists
+    to (a) generate the CRD spec shape from the create request body, (b) declare the
+    findby verb the controller requires for level-based convergence, and (c) declare the
+    single-execution get used to verify deletion before releasing the finalizer.
+    Declares the http/bearer security scheme that the upstream Keycloak OAS omits.
+    NOTE - this asset is hand-maintained (not emitted by hack/gen_oas_assets.py); its
+    shape diverges too much from the collection+item pattern the generator produces.
 servers:
 - url: '{{ .Values.keycloak.baseUrl }}'
   description: Keycloak base URL (no trailing slash).
@@ -29,7 +32,9 @@ components:
         the flow addressed by the {flowAlias} path parameter (a top-level flow alias or a
         subflow alias - Keycloak flow aliases are realm-unique). The natural key is
         (realm, flowAlias, provider) for an execution and (realm, flowAlias, alias) for a
-        subflow.
+        subflow. The natural-key fields are effectively CREATE-ONLY - changing them on a
+        live CR re-targets the reconcile at a NEW execution and ORPHANS the old one
+        (nothing deletes it). To move an execution, delete the CR and re-create it.
       properties:
         provider:
           type: string
@@ -62,10 +67,14 @@ components:
             desired value (default DISABLED).'
         priority:
           type: integer
-          description: Desired zero-based index among the parent flow's direct children.
-            When set, the reconcile converges the position via Keycloak's
-            raise-priority/lower-priority move operations (one direction per reconcile
-            pass; re-observed until stable). Unset = position not managed.
+          description: Keycloak execution priority (ordering weight; siblings are ordered
+            by ASCENDING priority - lower runs first). Sent verbatim on create, so the
+            execution lands in the right position by construction (verified live on
+            Keycloak 26.0.8). Use spaced values (10, 20, 30) so later insertions need no
+            renumbering. Priority is immutable in Keycloak once created - on priority
+            drift the reconcile deletes and recreates the execution (for a subflow this
+            recreates its children too, over the following reconciles). Unset = position
+            not managed (Keycloak assigns).
         configAlias:
           type: string
           description: Alias for the authenticator config entry (defaults to the CR
@@ -101,10 +110,15 @@ components:
           type: string
         index:
           type: integer
-          description: Zero-based position among siblings at the same level.
+          description: Zero-based position among siblings at the same level (derived,
+            shifts when siblings change).
         level:
           type: integer
           description: Nesting depth relative to the addressed flow (0 = direct child).
+        priority:
+          type: integer
+          description: Keycloak execution priority (ordering weight). Present in the
+            listing on Keycloak 26+; the reconcile compares it against spec.priority.
         configurable:
           type: boolean
         authenticationConfig:
@@ -118,6 +132,26 @@ components:
           type: boolean
           description: Synthetic (observe RESTAction) - whether an authenticator config is
             attached.
+    AuthenticationExecutionRepresentation:
+      type: object
+      description: Single-execution representation (GET by server id). Used only by the
+        delete-verification get verb - a 404 here proves the execution is gone before the
+        finalizer is released.
+      properties:
+        id:
+          type: string
+          readOnly: true
+        authenticator:
+          type: string
+        authenticatorFlow:
+          type: boolean
+        requirement:
+          type: string
+        priority:
+          type: integer
+        parentFlow:
+          type: string
+          description: Server id of the parent flow.
 paths:
   /admin/realms/{realm}/authentication/flows/{flowAlias}/executions/execution:
     post:
@@ -172,3 +206,28 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/AuthenticationExecutionInfoRepresentation'
+  /admin/realms/{realm}/authentication/executions/{executionId}:
+    get:
+      operationId: getAuthenticationexecution
+      summary: Get a single execution by server id (delete verification)
+      tags:
+      - authenticationexecution
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: executionId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Server-generated execution id (resolved from status.id).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticationExecutionRepresentation'

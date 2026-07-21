@@ -115,9 +115,11 @@ spec:
 #
 # Each CR manages ONE direct child of the flow named by `flowAlias` (subflow
 # aliases are realm-unique, so nesting = pointing flowAlias at the subflow).
-# With the acr.loa.map on the client below, a request with acr_values=gold
-# forces the OTP leg and the issued token carries acr=2 — the signal a
-# step-up guard checks before allowing a critical operation.
+# `priority` is Keycloak's native ordering weight (ascending; spaced 10/20/30 so
+# later insertions need no renumbering) — sent at create, so each child lands in
+# position immediately. With the acr.loa.map on the client below, a request with
+# acr_values=gold forces the OTP leg and the issued token carries acr=2 — the
+# signal a step-up guard checks before allowing a critical operation.
 # ---------------------------------------------------------------------------
 apiVersion: keycloak.ogen.krateo.io/v1alpha1
 kind: KeycloakAuthenticationExecution
@@ -132,7 +134,7 @@ spec:
   flowAlias: browser-mfa
   provider: auth-cookie
   requirement: ALTERNATIVE
-  priority: 0
+  priority: 10
 ---
 apiVersion: keycloak.ogen.krateo.io/v1alpha1
 kind: KeycloakAuthenticationExecution
@@ -147,7 +149,7 @@ spec:
   flowAlias: browser-mfa
   provider: identity-provider-redirector
   requirement: ALTERNATIVE
-  priority: 1
+  priority: 20
 ---
 apiVersion: keycloak.ogen.krateo.io/v1alpha1
 kind: KeycloakAuthenticationExecution
@@ -164,7 +166,7 @@ spec:
   alias: browser-mfa-forms
   description: "Interactive forms (LoA ladder)"
   requirement: ALTERNATIVE
-  priority: 2
+  priority: 30
 ---
 # LoA 1 leg: password. loa-max-age 36000 keeps level 1 valid for the session.
 apiVersion: keycloak.ogen.krateo.io/v1alpha1
@@ -181,7 +183,7 @@ spec:
   subFlow: true
   alias: browser-mfa-loa1
   requirement: CONDITIONAL
-  priority: 0
+  priority: 10
 ---
 apiVersion: keycloak.ogen.krateo.io/v1alpha1
 kind: KeycloakAuthenticationExecution
@@ -196,7 +198,7 @@ spec:
   flowAlias: browser-mfa-loa1
   provider: conditional-level-of-authentication
   requirement: REQUIRED
-  priority: 0
+  priority: 10
   configAlias: loa1-condition
   config:
     loa-condition-level: "1"
@@ -215,7 +217,7 @@ spec:
   flowAlias: browser-mfa-loa1
   provider: auth-username-password-form
   requirement: REQUIRED
-  priority: 1
+  priority: 20
 ---
 # LoA 2 leg: OTP. loa-max-age 0 = re-authenticate every time level 2 is asked.
 apiVersion: keycloak.ogen.krateo.io/v1alpha1
@@ -232,7 +234,7 @@ spec:
   subFlow: true
   alias: browser-mfa-loa2
   requirement: CONDITIONAL
-  priority: 1
+  priority: 20
 ---
 apiVersion: keycloak.ogen.krateo.io/v1alpha1
 kind: KeycloakAuthenticationExecution
@@ -247,7 +249,7 @@ spec:
   flowAlias: browser-mfa-loa2
   provider: conditional-level-of-authentication
   requirement: REQUIRED
-  priority: 0
+  priority: 10
   configAlias: loa2-condition
   config:
     loa-condition-level: "2"
@@ -266,7 +268,7 @@ spec:
   flowAlias: browser-mfa-loa2
   provider: auth-otp-form
   requirement: REQUIRED
-  priority: 1
+  priority: 20
 ---
 # A client that advertises an ACR -> LoA map, so tokens it issues carry the acr
 # claim per level. ACR mapping is a standard Keycloak client attribute

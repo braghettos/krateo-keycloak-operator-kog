@@ -40,12 +40,17 @@ carry the `acr` claim per level. See `samples/20-authentication-mfa.yaml`.
 > The individual **executions/subflows inside** a flow are managed by
 > `KeycloakAuthenticationExecution` — one CR per direct child of the flow named
 > by `spec.flowAlias` (nesting = pointing `flowAlias` at a subflow's alias).
-> Keycloak's executions API is create-then-mutate with move-op ordering, so this
-> RestDefinition **delegates observe/create/update/delete to Snowplow
+> Keycloak's executions API is create-then-mutate (`priority` is honored at
+> create but immutable afterwards; `requirement` is a separate flow-scoped PUT),
+> so this RestDefinition **delegates observe/create/update/delete to Snowplow
 > `RESTAction`s** (`observeApiRef`/`createApiRef`/`updateApiRef`/`deleteApiRef`)
-> — full reconcile, no plugin, no operator code. The sample assembles the
-> canonical step-up ladder (LoA 1 = password, LoA 2 = OTP), which with
-> `acr.loa.map` makes an `acr_values=gold` login issue a token with `acr=2`. See
+> — full reconcile, no plugin, no operator code. Ordering is **declarative**:
+> `spec.priority` is Keycloak's native ascending weight (use spaced values,
+> 10/20/30), sent at create; priority drift converges by delete + re-create.
+> The sample assembles the canonical step-up ladder (LoA 1 = password,
+> LoA 2 = OTP), which with `acr.loa.map` makes an `acr_values=gold` login issue
+> a token with `acr=2`. Requires snowplow + authn wired into the rdc deployment
+> (`URL_SNOWPLOW`/`URL_AUTHN`) — see
 > [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#authentication-flows--executions-mfa--acr).
 
 > **Mappers on a client you manage here** are best declared **inline** on the
@@ -140,12 +145,17 @@ rather than creates.
 **`KeycloakAuthenticationExecution` — validation status.** The RESTAction
 delegation mechanics (`observeApiRef` existence/drift gating, level-based
 create convergence, finalizer-held delete) are covered by unit tests in the
-`rest-dynamic-controller` it ships with; the chart renders + lints clean and
-every jq expression parses. **Live-cluster reconcile — in particular the
-move-op ordering converging to `spec.priority` and the
-`conditional-level-of-authentication` config producing a live `acr=2` token —
-is the remaining validation step** and is exactly what
-`samples/20-authentication-mfa.yaml` + `demo/mfa-stepup` exercise.
+`rest-dynamic-controller` it ships with; the chart renders + lints clean.
+The **Keycloak API contract and every jq program were validated against a live
+Keycloak 26.0.8**: `hack/validate-executions-live.sh` replays the exact
+observe/create/update/delete stage sequences (same endpoints, same jq extracted
+from the rendered manifests) to build the full step-up ladder from the sample,
+then injects requirement / priority / config drift and verifies convergence and
+finalizer-style 404 deletion. Declarative `priority` at create, priority
+immutability, and recreate-convergence are live-verified facts, not
+assumptions. **The remaining step is in-cluster reconcile through
+oasgen + rdc + snowplow themselves** (needs a full Krateo control plane with
+`URL_SNOWPLOW`/`URL_AUTHN` wired into the rdc deployment).
 
 Resource-specific note surfaced by validation:
 

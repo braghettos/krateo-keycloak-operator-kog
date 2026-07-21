@@ -71,11 +71,13 @@ restDefinitions:
     enabled: true
     kind: KeycloakRequiredAction
   # One execution (or subflow) INSIDE a flow. Keycloak's executions API is
-  # create-then-mutate with move-op ordering, so this RestDefinition delegates
-  # its lifecycle verbs to Snowplow RESTActions (observeApiRef/createApiRef/
-  # updateApiRef/deleteApiRef) instead of plain OAS verbs. Requires snowplow
-  # (already a rest-dynamic-controller dependency) and the Endpoint-shaped
-  # Secret below (snowplow.endpointSecretName).
+  # create-then-mutate (priority honored at create, immutable afterwards), so
+  # this RestDefinition delegates its lifecycle verbs to Snowplow RESTActions
+  # (observeApiRef/createApiRef/updateApiRef/deleteApiRef) instead of plain OAS
+  # verbs. Requires snowplow + authn wired into the rdc deployment
+  # (URL_SNOWPLOW/URL_AUTHN + projected authn token - the stock oasgen rdc
+  # templates do NOT set these) and the Endpoint-shaped Secret below
+  # (snowplow.endpointSecretName).
   authenticationexecution:
     enabled: true
     kind: KeycloakAuthenticationExecution

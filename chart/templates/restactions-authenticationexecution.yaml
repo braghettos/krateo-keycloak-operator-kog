@@ -58,6 +58,7 @@ spec:
             requirement: ($m[0].requirement // ""),
             index: ($m[0].index // 0),
             level: ($m[0].level // 0),
+            priority: ($m[0].priority // -1),
             configured: (($m[0].authenticationConfig // null) != null)}
       end
 ---
@@ -70,26 +71,57 @@ metadata:
     {{- include "keycloak-config-kog.labels" . | nindent 4 }}
 spec:
   api:
-    # Execution: POST .../executions/execution {provider}.
-    # Subflow:   POST .../executions/flow {alias, type, description}.
-    # Requirement/priority/config are applied by the update RESTAction on the
-    # next reconcile (Keycloak creates executions as DISABLED, so the observe
-    # reports drift immediately after a successful create).
+    # SELF-GATING create. The observe composes {found:false} for ANY listing
+    # failure (its stage is continueOnError so a missing parent flow does not
+    # wedge the reconcile) - so a transient listing error can make the
+    # controller invoke create against an execution that actually exists.
+    # This chain makes duplication impossible:
+    #   1. `list` re-reads the flow WITHOUT continueOnError - a hard listing
+    #      failure truncates the chain (no POST fires; retried next reconcile);
+    #   2. `create` iterates a jq gate that is EMPTY when the execution is
+    #      already present among the level-0 children.
+    # Execution: POST .../executions/execution {provider, priority?}.
+    # Subflow:   POST .../executions/flow {alias, type, description?, priority?}.
+    # `priority` is Keycloak's native ordering weight, honored at create (verified
+    # live on 26.0.8) - the execution lands in the right position by construction.
+    # Requirement/config are applied by the update RESTAction on the next reconcile
+    # (Keycloak creates executions as DISABLED, so the observe reports drift
+    # immediately after a successful create).
+    - name: list
+      endpointRef:
+        name: {{ .Values.snowplow.endpointSecretName }}
+        namespace: {{ .Release.Namespace }}
+      path: '${ "/admin/realms/" + .realm + "/authentication/flows/" + (.flowAlias|@uri) + "/executions" }'
     - name: create
+      dependsOn:
+        name: list
+        iterator: >-
+          (.subFlow // false) as $sub
+          | (.alias // "") as $alias
+          | (.provider // "") as $prov
+          | ((((.list // [])
+               | map(select(((.level // 0) == 0)
+                     and (if $sub then ((.authenticationFlow // false) and (.displayName == $alias))
+                          else (.providerId == $prov) end))))[0]) // null) as $e
+          | if $e != null then []
+            else [{realm: .realm,
+                   flowAlias: .flowAlias,
+                   kind: (if $sub then "flow" else "execution" end),
+                   body: ((if (.spec.priority // null) != null then {priority: .spec.priority} else {} end) as $prio
+                          | if $sub
+                            then ({alias: $alias, type: (.spec.providerId // "basic-flow")}
+                                  + (if (.spec.description // "") != "" then {description: .spec.description} else {} end)
+                                  + $prio)
+                            else ({provider: $prov} + $prio) end)}]
+            end
       endpointRef:
         name: {{ .Values.snowplow.endpointSecretName }}
         namespace: {{ .Release.Namespace }}
       verb: POST
       headers:
         - "Content-Type: application/json"
-      path: >-
-        ${ "/admin/realms/" + .realm + "/authentication/flows/" + (.flowAlias|@uri)
-           + "/executions/" + (if (.subFlow // false) then "flow" else "execution" end) }
-      payload: >-
-        ${ if (.subFlow // false)
-           then ({alias: (.alias // ""), type: (.spec.providerId // "basic-flow")}
-                 + (if (.spec.description // "") != "" then {description: .spec.description} else {} end))
-           else {provider: (.provider // "")} end }
+      path: '${ "/admin/realms/" + .realm + "/authentication/flows/" + (.flowAlias|@uri) + "/executions/" + .kind }'
+      payload: '${ .body }'
       continueOnError: true
       errorKey: createError
   filter: '{}'
@@ -131,10 +163,16 @@ spec:
          | $e + {requirement: (.spec.requirement // "DISABLED")} }
       continueOnError: true
       errorKey: requirementError
-    # Ordering: fan out |index - priority| raise-/lower-priority move ops (all one
-    # direction, so applying them in a single pass is order-safe); the next observe
-    # re-checks the index and the reconcile converges over resyncs.
-    - name: moves
+    # Ordering: Keycloak's priority weight is IMMUTABLE post-create, so priority
+    # drift is converged by DELETE + re-CREATE with the desired priority (executions
+    # are pure config - safe to recreate). Both stages iterate the SAME
+    # priority-drift condition over the one `list` snapshot: an empty iterator array
+    # is the "stage does not apply" case. The recreated execution lands DISABLED
+    # (and, for a subflow, empty - its children CRs re-create themselves on their
+    # next reconciles); the following observe reports the residual drift and the
+    # next update pass converges requirement/config. pdel runs before pcreate via
+    # dependsOn.
+    - name: pdel
       dependsOn:
         name: list
         iterator: >-
@@ -147,19 +185,46 @@ spec:
                | map(select(((.level // 0) == 0)
                      and (if $sub then ((.authenticationFlow // false) and (.displayName == $alias))
                           else (.providerId == $prov) end))))[0]) // null) as $e
-          | if ($want == null) or ($e == null) then []
-            else (($e.index // 0) - $want) as $d
-            | (if $d > 0 then ([range(0; $d)] | map({realm: $realm, id: $e.id, op: "raise-priority"}))
-               elif $d < 0 then ([range(0; -$d)] | map({realm: $realm, id: $e.id, op: "lower-priority"}))
-               else [] end)
+          | if ($want == null) or ($e == null) or (($e.priority // null) == $want) then []
+            else [{realm: $realm, id: $e.id}] end
+      endpointRef:
+        name: {{ .Values.snowplow.endpointSecretName }}
+        namespace: {{ .Release.Namespace }}
+      verb: DELETE
+      path: '${ "/admin/realms/" + .realm + "/authentication/executions/" + .id }'
+      continueOnError: true
+      errorKey: pdelError
+    - name: pcreate
+      dependsOn:
+        name: pdel
+        iterator: >-
+          (.spec.priority // null) as $want
+          | (.subFlow // false) as $sub
+          | (.alias // "") as $alias
+          | (.provider // "") as $prov
+          | ((((.list // [])
+               | map(select(((.level // 0) == 0)
+                     and (if $sub then ((.authenticationFlow // false) and (.displayName == $alias))
+                          else (.providerId == $prov) end))))[0]) // null) as $e
+          | if ($want == null) or ($e == null) or (($e.priority // null) == $want) then []
+            else [{realm: .realm,
+                   flowAlias: .flowAlias,
+                   kind: (if $sub then "flow" else "execution" end),
+                   body: (if $sub
+                          then ({alias: $alias, type: (.spec.providerId // "basic-flow"), priority: $want}
+                                + (if (.spec.description // "") != "" then {description: .spec.description} else {} end))
+                          else {provider: $prov, priority: $want} end)}]
             end
       endpointRef:
         name: {{ .Values.snowplow.endpointSecretName }}
         namespace: {{ .Release.Namespace }}
       verb: POST
-      path: '${ "/admin/realms/" + .realm + "/authentication/executions/" + .id + "/" + .op }'
+      headers:
+        - "Content-Type: application/json"
+      path: '${ "/admin/realms/" + .realm + "/authentication/flows/" + (.flowAlias|@uri) + "/executions/" + .kind }'
+      payload: '${ .body }'
       continueOnError: true
-      errorKey: movesError
+      errorKey: pcreateError
     # Authenticator config, presence-gated: POST .../executions/{id}/config when the
     # execution has none...
     - name: configcreate
