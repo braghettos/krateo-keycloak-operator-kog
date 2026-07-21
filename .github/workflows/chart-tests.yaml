@@ -1,0 +1,67 @@
+name: chart-tests
+
+# Static verification of the chart: helm lint + template, every embedded OAS
+# parses, and the KeycloakAuthenticationExecution DELEGATION WIRING tests
+# (tests/delegation) — which render the chart, extract the EXACT jq from the
+# four Snowplow RESTActions, and assert observe select/compose, create/update
+# fan-out and the delete iterator against fixture payloads. Fully offline: no
+# Keycloak, no cluster (that remains a separately-gated live step).
+
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  HELM_VERSION: v3.19.0
+  CHART_DIR: chart
+
+jobs:
+  chart-static:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test deps (jq + PyYAML)
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+          python -m pip install --upgrade pip pyyaml
+
+      - name: helm lint
+        run: helm lint "$CHART_DIR"
+
+      - name: helm template (render must succeed)
+        run: helm template kog "$CHART_DIR" --namespace kog-ci > /tmp/rendered.yaml
+
+      - name: Every embedded OAS asset parses
+        run: |
+          python - <<'PY'
+          import glob, sys, yaml
+          bad = []
+          for f in glob.glob("chart/assets/*.yaml"):
+              try:
+                  yaml.safe_load(open(f))
+              except Exception as e:
+                  bad.append(f"{f}: {e}")
+          if bad:
+              print("\n".join(bad)); sys.exit(1)
+          print("all OAS assets parse")
+          PY
+
+      - name: Delegation wiring tests (jq filters vs fixtures)
+        run: python tests/delegation/run.py

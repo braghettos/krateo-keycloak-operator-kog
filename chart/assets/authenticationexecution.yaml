@@ -1,0 +1,250 @@
+openapi: 3.0.3
+info:
+  title: Keycloak Admin API - Authentication Execution (KOG subset)
+  version: v1
+  description: Hand-curated OpenAPI 3.0 subset of the Keycloak Admin REST API for a single
+    execution (or subflow) INSIDE an authentication flow. Unlike the other assets, this
+    resource is NOT reconciled through plain verbs alone - Keycloak's executions API is
+    create-then-mutate (requirement is set by a separate flow-scoped PUT, priority is
+    immutable after create) - so the RestDefinition delegates its lifecycle to Snowplow
+    RESTActions (observeApiRef/createApiRef/updateApiRef/deleteApiRef). This OAS exists
+    to (a) generate the CRD spec shape from the create request body, (b) declare the
+    findby verb the controller requires for level-based convergence, and (c) declare the
+    single-execution get used to verify deletion before releasing the finalizer.
+    Declares the http/bearer security scheme that the upstream Keycloak OAS omits.
+    NOTE - this asset is hand-maintained (not emitted by hack/gen_oas_assets.py); its
+    shape diverges too much from the collection+item pattern the generator produces.
+servers:
+- url: '{{ .Values.keycloak.baseUrl }}'
+  description: Keycloak base URL (no trailing slash).
+security:
+- bearer: []
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: Keycloak admin access token (OAuth2 Bearer).
+  schemas:
+    AuthenticationExecutionInput:
+      type: object
+      description: Desired state of one execution (or subflow) that is a DIRECT child of
+        the flow addressed by the {flowAlias} path parameter (a top-level flow alias or a
+        subflow alias - Keycloak flow aliases are realm-unique). The natural key is
+        (realm, flowAlias, provider) for an execution and (realm, flowAlias, alias) for a
+        subflow. The natural-key fields are effectively CREATE-ONLY - changing them on a
+        live CR re-targets the reconcile at a NEW execution and ORPHANS the old one
+        (nothing deletes it). To move an execution, delete the CR and re-create it.
+      properties:
+        provider:
+          type: string
+          description: Authenticator provider id (e.g. auth-cookie, auth-otp-form,
+            auth-username-password-form, conditional-user-configured,
+            conditional-level-of-authentication, identity-provider-redirector). Natural
+            key among the parent flow's direct children when subFlow is false. Declare at
+            most one CR per (flowAlias, provider) pair - duplicate providers under the
+            same parent are not distinguishable.
+        subFlow:
+          type: boolean
+          description: When true this CR manages a SUBFLOW (addressed by alias) instead of
+            an execution (addressed by provider).
+        alias:
+          type: string
+          description: Subflow alias (required when subFlow is true; ignored otherwise).
+            Keycloak flow aliases are realm-unique, so a nested execution declares this
+            alias as its flowAlias parent.
+        providerId:
+          type: string
+          description: Subflow type when subFlow is true - basic-flow (default) or
+            form-flow. Ignored for executions.
+        description:
+          type: string
+          description: Subflow description (subFlow only).
+        requirement:
+          type: string
+          description: 'Execution requirement: REQUIRED, ALTERNATIVE, CONDITIONAL or
+            DISABLED. Keycloak creates executions as DISABLED; the reconcile PUTs the
+            desired value (default DISABLED).'
+        priority:
+          type: integer
+          description: Keycloak execution priority (ordering weight; siblings are ordered
+            by ASCENDING priority - lower runs first). Sent verbatim on create, so the
+            execution lands in the right position by construction (verified live on
+            Keycloak 26.0.8). Use spaced values (10, 20, 30) so later insertions need no
+            renumbering. Priority is immutable in Keycloak once created - on priority
+            drift the reconcile deletes and recreates the execution (for a subflow this
+            recreates its children too, over the following reconciles). Unset = position
+            not managed (Keycloak assigns).
+        configAlias:
+          type: string
+          description: Alias for the authenticator config entry (defaults to the CR
+            name). Only used when config is set.
+        config:
+          type: object
+          additionalProperties:
+            type: string
+          description: Authenticator config key/values (e.g. for
+            conditional-level-of-authentication set loa-condition-level "2" and
+            loa-max-age "0"). Drift detection is PRESENCE-ONLY - the reconcile applies the
+            config when the execution has none and re-applies values on any other drift
+            update, but a value-only change does not by itself trigger an update.
+    AuthenticationExecutionInfoRepresentation:
+      type: object
+      description: One entry of the flow's executions listing (recursive; level 0 = direct
+        child of the addressed flow). found/configured are synthetic fields composed by
+        the observe RESTAction, surfaced here so they land in the generated status.
+      properties:
+        id:
+          type: string
+          description: Server-generated execution id (read-only).
+          readOnly: true
+        providerId:
+          type: string
+        displayName:
+          type: string
+          description: For a subflow entry this is the subflow alias.
+        authenticationFlow:
+          type: boolean
+          description: True when the entry is a subflow.
+        requirement:
+          type: string
+        index:
+          type: integer
+          description: Zero-based position among siblings at the same level (derived,
+            shifts when siblings change).
+        level:
+          type: integer
+          description: Nesting depth relative to the addressed flow (0 = direct child).
+        priority:
+          type: integer
+          description: Keycloak execution priority (ordering weight). Present in the
+            listing on Keycloak 26+; the reconcile compares it against spec.priority.
+        configurable:
+          type: boolean
+        authenticationConfig:
+          type: string
+          description: Id of the attached authenticator config, when present.
+        found:
+          type: boolean
+          description: Synthetic (observe RESTAction) - whether the execution/subflow was
+            found among the parent flow's direct children.
+        configured:
+          type: boolean
+          description: Synthetic (observe RESTAction) - whether an authenticator config is
+            attached.
+    AuthenticationExecutionRepresentation:
+      type: object
+      description: Single-execution representation (GET by server id). Used only by the
+        delete-verification get verb - a 404 here proves the execution is gone before the
+        finalizer is released. ALSO drives the generated CRD's STATUS field types -
+        oasgen resolves additionalStatusFields against this get response schema (fields
+        it cannot resolve default to string) - so the observe-composed fields
+        (index/level/found/configured) are declared here with their real types even
+        though the live single-exec response does not return them.
+      properties:
+        id:
+          type: string
+          readOnly: true
+        authenticator:
+          type: string
+        authenticatorFlow:
+          type: boolean
+        requirement:
+          type: string
+        priority:
+          type: integer
+        parentFlow:
+          type: string
+          description: Server id of the parent flow.
+        index:
+          type: integer
+          description: Synthetic typing entry - composed into status by the observe
+            RESTAction (position among level-0 siblings), not returned by this GET.
+        level:
+          type: integer
+          description: Synthetic typing entry - composed by the observe RESTAction.
+        found:
+          type: boolean
+          description: Synthetic typing entry - composed by the observe RESTAction.
+        configured:
+          type: boolean
+          description: Synthetic typing entry - composed by the observe RESTAction.
+paths:
+  /admin/realms/{realm}/authentication/flows/{flowAlias}/executions/execution:
+    post:
+      operationId: createAuthenticationexecution
+      summary: Add an execution (or, via the RESTAction's /executions/flow branch, a subflow) to a flow
+      tags:
+      - authenticationexecution
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: flowAlias
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Alias of the DIRECT parent flow (top-level flow alias or subflow alias).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthenticationExecutionInput'
+      responses:
+        '201':
+          description: Created. Identifier returned via Location header.
+  /admin/realms/{realm}/authentication/flows/{flowAlias}/executions:
+    get:
+      operationId: listAuthenticationexecution
+      summary: List the executions of a flow (recursive; level 0 = direct children)
+      tags:
+      - authenticationexecution
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: flowAlias
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuthenticationExecutionInfoRepresentation'
+  /admin/realms/{realm}/authentication/executions/{executionId}:
+    get:
+      operationId: getAuthenticationexecution
+      summary: Get a single execution by server id (delete verification)
+      tags:
+      - authenticationexecution
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: executionId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Server-generated execution id (resolved from status.id).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticationExecutionRepresentation'

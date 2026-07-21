@@ -1,0 +1,5 @@
+# Historical false positive: a placeholder TOTP secret in a demo README example
+# invocation (never a real credential). Replaced with openssl-rand generation in
+# 24d77e1; these fingerprints suppress the literal at its original commit.
+6b43f249fdb617f9dc00fc07b7e0be1d4ef3e945:demo/acr-via-crs/README.md:generic-api-key:42
+6b43f249fdb617f9dc00fc07b7e0be1d4ef3e945:demo/acr-via-crs/README.md:generic-api-key:50

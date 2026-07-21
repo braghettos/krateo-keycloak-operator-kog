@@ -1,0 +1,104 @@
+[
+  {
+    "id": "exec-cookie",
+    "requirement": "ALTERNATIVE",
+    "displayName": "Cookie",
+    "requirementChoices": ["REQUIRED", "ALTERNATIVE", "DISABLED"],
+    "configurable": false,
+    "providerId": "auth-cookie",
+    "level": 0,
+    "index": 0,
+    "priority": 10
+  },
+  {
+    "id": "exec-idp-redirector",
+    "requirement": "ALTERNATIVE",
+    "displayName": "Identity Provider Redirector",
+    "requirementChoices": ["REQUIRED", "ALTERNATIVE", "DISABLED"],
+    "configurable": true,
+    "providerId": "identity-provider-redirector",
+    "level": 0,
+    "index": 1,
+    "priority": 20
+  },
+  {
+    "id": "flow-forms",
+    "requirement": "ALTERNATIVE",
+    "displayName": "browser-mfa-forms",
+    "description": "Interactive forms (LoA ladder)",
+    "requirementChoices": ["REQUIRED", "ALTERNATIVE", "CONDITIONAL", "DISABLED"],
+    "authenticationFlow": true,
+    "flowId": "flow-forms-id",
+    "level": 0,
+    "index": 2,
+    "priority": 30
+  },
+  {
+    "id": "flow-loa1",
+    "requirement": "CONDITIONAL",
+    "displayName": "browser-mfa-loa1",
+    "requirementChoices": ["REQUIRED", "ALTERNATIVE", "CONDITIONAL", "DISABLED"],
+    "authenticationFlow": true,
+    "flowId": "flow-loa1-id",
+    "level": 1,
+    "index": 0,
+    "priority": 10
+  },
+  {
+    "id": "exec-loa1-condition",
+    "requirement": "REQUIRED",
+    "displayName": "Condition - Level of Authentication",
+    "requirementChoices": ["REQUIRED", "DISABLED"],
+    "configurable": true,
+    "authenticationConfig": "cfg-loa1",
+    "providerId": "conditional-level-of-authentication",
+    "level": 2,
+    "index": 0,
+    "priority": 10
+  },
+  {
+    "id": "exec-loa1-password",
+    "requirement": "REQUIRED",
+    "displayName": "Username Password Form",
+    "requirementChoices": ["REQUIRED"],
+    "configurable": false,
+    "providerId": "auth-username-password-form",
+    "level": 2,
+    "index": 1,
+    "priority": 20
+  },
+  {
+    "id": "flow-loa2",
+    "requirement": "CONDITIONAL",
+    "displayName": "browser-mfa-loa2",
+    "requirementChoices": ["REQUIRED", "ALTERNATIVE", "CONDITIONAL", "DISABLED"],
+    "authenticationFlow": true,
+    "flowId": "flow-loa2-id",
+    "level": 1,
+    "index": 1,
+    "priority": 20
+  },
+  {
+    "id": "exec-loa2-condition",
+    "requirement": "REQUIRED",
+    "displayName": "Condition - Level of Authentication",
+    "requirementChoices": ["REQUIRED", "DISABLED"],
+    "configurable": true,
+    "authenticationConfig": "cfg-loa2",
+    "providerId": "conditional-level-of-authentication",
+    "level": 2,
+    "index": 0,
+    "priority": 10
+  },
+  {
+    "id": "exec-loa2-otp",
+    "requirement": "REQUIRED",
+    "displayName": "OTP Form",
+    "requirementChoices": ["REQUIRED", "ALTERNATIVE", "DISABLED"],
+    "configurable": false,
+    "providerId": "auth-otp-form",
+    "level": 2,
+    "index": 1,
+    "priority": 20
+  }
+]

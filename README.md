@@ -24,6 +24,7 @@ The **lifecycle** half (installing Keycloak itself) is the sibling
 | `KeycloakIdentityProviderMapper` | mapper on an IdP instance (e.g. GitHub → group) | `name` → UUID via `findby`; parent `alias` |
 | `KeycloakAuthenticationFlow` | authentication flow (top-level container) | `alias` → UUID via `findby` |
 | `KeycloakRequiredAction` | required-action provider (e.g. `CONFIGURE_TOTP`, `webauthn-register`) | natural key `alias` (direct) |
+| `KeycloakAuthenticationExecution` | one execution / subflow **inside** a flow (requirement, position, authenticator config) | `(realm, flowAlias, provider \| alias)` via delegated Snowplow RESTActions |
 
 ### Authentication & MFA
 
@@ -36,12 +37,20 @@ container. **ACR → Level-of-Authentication** mapping is the standard
 level) — expressed directly on `KeycloakClient.attributes`, so issued tokens
 carry the `acr` claim per level. See `samples/20-authentication-mfa.yaml`.
 
-> Managing the individual **executions/subflows inside** a flow (requirement +
-> ordering) is the tracked follow-up. Keycloak's executions API is
-> create-then-mutate, which the shipped `rest-dynamic-controller` handles by
-> **delegating observe/create/update/delete to Snowplow `RESTAction`s**
-> (`observeApiRef`/`createApiRef`/`updateApiRef`/`deleteApiRef`) — full reconcile,
-> no plugin. See
+> The individual **executions/subflows inside** a flow are managed by
+> `KeycloakAuthenticationExecution` — one CR per direct child of the flow named
+> by `spec.flowAlias` (nesting = pointing `flowAlias` at a subflow's alias).
+> Keycloak's executions API is create-then-mutate (`priority` is honored at
+> create but immutable afterwards; `requirement` is a separate flow-scoped PUT),
+> so this RestDefinition **delegates observe/create/update/delete to Snowplow
+> `RESTAction`s** (`observeApiRef`/`createApiRef`/`updateApiRef`/`deleteApiRef`)
+> — full reconcile, no plugin, no operator code. Ordering is **declarative**:
+> `spec.priority` is Keycloak's native ascending weight (use spaced values,
+> 10/20/30), sent at create; priority drift converges by delete + re-create.
+> The sample assembles the canonical step-up ladder (LoA 1 = password,
+> LoA 2 = OTP), which with `acr.loa.map` makes an `acr_values=gold` login issue
+> a token with `acr=2`. Requires snowplow + authn wired into the rdc deployment
+> (`URL_SNOWPLOW`/`URL_AUTHN`) — see
 > [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#authentication-flows--executions-mfa--acr).
 
 > **Mappers on a client you manage here** are best declared **inline** on the
@@ -127,11 +136,44 @@ resources (`KeycloakRealm`/`KeycloakClient`) and are exercised by
 `helm template` + schema checks. `KeycloakRequiredAction` (natural-key `alias`,
 direct) and `KeycloakAuthenticationFlow` (natural-key `alias` → `findby` → `id`)
 reuse the exact addressing patterns already proven by `KeycloakIdentityProvider`
-and `KeycloakClient` respectively; **live-cluster reconcile of these two is
-pending** and will be confirmed alongside the executions follow-up. One known
-Keycloak-specific caveat: `register-required-action` is the create endpoint for a
-brand-new action, but the base actions (`CONFIGURE_TOTP`, `webauthn-register`)
-ship built-in, so reconcile normally observes + updates rather than creates.
+and `KeycloakClient` respectively. `KeycloakAuthenticationFlow` and
+`KeycloakRealm` **reconciled in-cluster in the 2026-07-21 e2e** (Ready=True,
+flow + realm created and rebuilt after a Keycloak restart);
+`KeycloakRequiredAction` live reconcile remains unverified. One known Keycloak-specific caveat: `register-required-action` is the
+create endpoint for a brand-new action, but the base actions (`CONFIGURE_TOTP`,
+`webauthn-register`) ship built-in, so reconcile normally observes + updates
+rather than creates.
+
+**`KeycloakAuthenticationExecution` — validation status.** Three levels, from
+cheapest to closest-to-production:
+
+1. **Static delegation-wiring tests** (`tests/delegation`, in CI) — render the
+   chart, extract the **exact jq** from the four RESTActions, and assert the
+   observe select/compose, the self-gating create fan-out, the priority-drift
+   move-list (delete + recreate), the presence-gated config stages and the
+   delete iterator against fixture payloads. Fully offline; no Keycloak.
+2. **Live-Keycloak replay** (`hack/validate-executions-live.sh`) — replays the
+   same extracted observe/create/update/delete stage sequences against a **real
+   Keycloak 26.0.8**, building the full step-up ladder from the sample, then
+   injecting requirement / priority / config drift and verifying convergence and
+   finalizer-style 404 deletion. Declarative `priority` at create, priority
+   immutability and recreate-convergence are live-verified facts here. This still
+   talks to Keycloak **directly** — it does not go through the controllers.
+3. **In-cluster reconcile** — **PROVEN on a kind cluster (2026-07-21)**: with
+   published images only (oasgen-provider 0.12.0 / rdc 0.11.0 / snowplow 1.7.13
+   cache-off / authn 0.24.0) and the apiRef wiring supplied purely via the
+   oasgen chart's `rdc.env`/`rdc.volumes` values, `kubectl apply` of the sample
+   converged the complete 9-CR step-up ladder into a live Keycloak 26 — exact
+   order by declarative priority, requirements, both LoA configs with correct
+   values — and `kubectl delete` held the finalizer until the single-execution
+   GET returned a real 404. Mid-run Keycloak restarted and wiped its dev
+   database; the controllers rebuilt the whole ladder from the CRs unattended.
+   Operational findings (authn probe headroom, ESO-rotation-is-mandatory,
+   oasgen OAS-cache caveats) are in `docs/ARCHITECTURE.md` → "Validated
+   in-cluster". The `demo/acr-via-crs` **token mint** (`acr_values=gold` ⇒
+   `acr=2` on client `acr-app`) was not re-run in that e2e — the CR-built
+   ladder is structurally identical to the script-built one that already
+   produced a live `acr=2` token in `demo/mfa-stepup`.
 
 Resource-specific note surfaced by validation:
 

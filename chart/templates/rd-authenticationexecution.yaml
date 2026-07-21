@@ -1,0 +1,88 @@
+{{- if .Values.restDefinitions.authenticationexecution.enabled }}
+apiVersion: ogen.krateo.io/v1alpha1
+kind: RestDefinition
+metadata:
+  name: {{ .Release.Name }}-authenticationexecution
+  labels:
+    {{- include "keycloak-config-kog.labels" . | nindent 4 }}
+  {{- if .Values.verbose }}
+  annotations:
+    krateo.io/connector-verbose: "true"
+  {{- end }}
+spec:
+  oasPath: configmap://{{ .Release.Namespace }}/{{ .Release.Name }}-authenticationexecution/authenticationexecution.yaml
+  resourceGroup: {{ .Values.resourceGroup }}
+  resource:
+    kind: {{ .Values.restDefinitions.authenticationexecution.kind }}
+    # One execution (or subflow) that is a DIRECT child of the flow addressed by
+    # `flowAlias` (top-level flow alias or subflow alias - aliases are realm-unique).
+    # Keycloak's executions API is create-then-mutate: create at .../executions/execution
+    # (the `priority` ordering weight is honored at create - verified live on 26.0.8 -
+    # but IMMUTABLE afterwards), requirement via a flow-scoped PUT. So the four
+    # lifecycle verbs are DELEGATED to Snowplow RESTActions via
+    # observeApiRef/createApiRef/updateApiRef/deleteApiRef (see
+    # templates/restactions-authenticationexecution.yaml and docs/ARCHITECTURE.md).
+    # The OAS verbs below exist for CRD generation (create request body = spec shape),
+    # for the CEL-required level-based-convergence verb (findby), and for
+    # finalizer-verified deletion (get by server id -> 404 proves it is gone).
+    identifiers:
+      - realm
+      - flowAlias
+      - provider
+      - alias
+      - subFlow
+    additionalStatusFields:
+      - id
+      - requirement
+      - index
+      - level
+      - priority
+      - found
+      - configured
+    # The get verb's {executionId} path param is server-generated - resolved from
+    # status.id via requestFieldMapping, never part of the spec.
+    excludedSpecFields:
+      - executionId
+    verbsDescription:
+      - action: create
+        method: POST
+        path: /admin/realms/{realm}/authentication/flows/{flowAlias}/executions/execution
+      - action: findby
+        method: GET
+        path: /admin/realms/{realm}/authentication/flows/{flowAlias}/executions
+      # Exercised only by delete verification (externalResourceStillExists): after the
+      # delete RESTAction runs, the finalizer is released only once this GET 404s.
+      # Observation itself is fully delegated to observeApiRef below.
+      - action: get
+        method: GET
+        path: /admin/realms/{realm}/authentication/executions/{executionId}
+        requestFieldMapping:
+          - inPath: executionId
+            inCustomResource: status.id
+    # Observe: list the parent flow's executions, select this one (level 0 +
+    # provider / subflow alias), compose {found,id,requirement,index,level,priority,configured}.
+    observeApiRef:
+      name: {{ .Release.Name }}-authenticationexecution-observe
+      namespace: {{ .Release.Namespace }}
+      # Absent => create (composes with createApiRef; the non-idempotent POST is
+      # gated by this observe, so it only fires while the execution is missing).
+      notFoundExpr:
+        inline: '(.status.found // false) | not'
+      # Drift => update: requirement mismatch, priority mismatch (Keycloak's native
+      # ordering weight, immutable post-create => the update RESTAction recreates), or
+      # a declared-but-missing authenticator config (presence-only config check).
+      upToDateExpr:
+        inline: >-
+          ((.status.requirement // "") == (.spec.requirement // "DISABLED"))
+          and ((.spec.priority == null) or ((.status.priority // -1) == .spec.priority))
+          and ((.spec.config == null) or (.status.configured // false))
+    createApiRef:
+      name: {{ .Release.Name }}-authenticationexecution-create
+      namespace: {{ .Release.Namespace }}
+    updateApiRef:
+      name: {{ .Release.Name }}-authenticationexecution-update
+      namespace: {{ .Release.Namespace }}
+    deleteApiRef:
+      name: {{ .Release.Name }}-authenticationexecution-delete
+      namespace: {{ .Release.Namespace }}
+{{- end }}

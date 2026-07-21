@@ -14,6 +14,14 @@ This is **Pattern B** from the analysis — a *policy gate*: the enforcement poi
 Kubernetes admission, consuming Keycloak's `acr` (Authentication Context Class
 Reference) claim. It is **fully runnable locally** (kind + dockerized Keycloak).
 
+> **Scope of this demo:** it builds the Keycloak LoA ladder **imperatively**
+> (the `kcadm` scripts `31-loa-flow.sh` / `32-loa-wire.sh`) against client
+> `kubernetes` with `acr_values=2`, to keep the admission-gate story self-contained
+> and local. To see the **same `acr=2` outcome produced by the
+> `KeycloakAuthenticationExecution` CRs this repo ships** (client `acr-app`,
+> `acr_values=gold`, flow reconciled by the control plane), use
+> [`demo/acr-via-crs`](../acr-via-crs/README.md).
+
 > Why local kind and not the GKE cluster? The mechanism requires configuring the
 > **kube-apiserver's authentication** (Structured Authentication Config) and an
 > **HTTPS OIDC issuer** — neither is possible on a managed control plane (GKE/EKS/AKS).
