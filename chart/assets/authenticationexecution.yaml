@@ -136,7 +136,11 @@ components:
       type: object
       description: Single-execution representation (GET by server id). Used only by the
         delete-verification get verb - a 404 here proves the execution is gone before the
-        finalizer is released.
+        finalizer is released. ALSO drives the generated CRD's STATUS field types -
+        oasgen resolves additionalStatusFields against this get response schema (fields
+        it cannot resolve default to string) - so the observe-composed fields
+        (index/level/found/configured) are declared here with their real types even
+        though the live single-exec response does not return them.
       properties:
         id:
           type: string
@@ -152,6 +156,19 @@ components:
         parentFlow:
           type: string
           description: Server id of the parent flow.
+        index:
+          type: integer
+          description: Synthetic typing entry - composed into status by the observe
+            RESTAction (position among level-0 siblings), not returned by this GET.
+        level:
+          type: integer
+          description: Synthetic typing entry - composed by the observe RESTAction.
+        found:
+          type: boolean
+          description: Synthetic typing entry - composed by the observe RESTAction.
+        configured:
+          type: boolean
+          description: Synthetic typing entry - composed by the observe RESTAction.
 paths:
   /admin/realms/{realm}/authentication/flows/{flowAlias}/executions/execution:
     post:

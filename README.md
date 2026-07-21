@@ -142,20 +142,28 @@ create endpoint for a brand-new action, but the base actions (`CONFIGURE_TOTP`,
 `webauthn-register`) ship built-in, so reconcile normally observes + updates
 rather than creates.
 
-**`KeycloakAuthenticationExecution` — validation status.** The RESTAction
-delegation mechanics (`observeApiRef` existence/drift gating, level-based
-create convergence, finalizer-held delete) are covered by unit tests in the
-`rest-dynamic-controller` it ships with; the chart renders + lints clean.
-The **Keycloak API contract and every jq program were validated against a live
-Keycloak 26.0.8**: `hack/validate-executions-live.sh` replays the exact
-observe/create/update/delete stage sequences (same endpoints, same jq extracted
-from the rendered manifests) to build the full step-up ladder from the sample,
-then injects requirement / priority / config drift and verifies convergence and
-finalizer-style 404 deletion. Declarative `priority` at create, priority
-immutability, and recreate-convergence are live-verified facts, not
-assumptions. **The remaining step is in-cluster reconcile through
-oasgen + rdc + snowplow themselves** (needs a full Krateo control plane with
-`URL_SNOWPLOW`/`URL_AUTHN` wired into the rdc deployment).
+**`KeycloakAuthenticationExecution` — validation status.** Three levels, from
+cheapest to closest-to-production:
+
+1. **Static delegation-wiring tests** (`tests/delegation`, in CI) — render the
+   chart, extract the **exact jq** from the four RESTActions, and assert the
+   observe select/compose, the self-gating create fan-out, the priority-drift
+   move-list (delete + recreate), the presence-gated config stages and the
+   delete iterator against fixture payloads. Fully offline; no Keycloak.
+2. **Live-Keycloak replay** (`hack/validate-executions-live.sh`) — replays the
+   same extracted observe/create/update/delete stage sequences against a **real
+   Keycloak 26.0.8**, building the full step-up ladder from the sample, then
+   injecting requirement / priority / config drift and verifying convergence and
+   finalizer-style 404 deletion. Declarative `priority` at create, priority
+   immutability and recreate-convergence are live-verified facts here. This still
+   talks to Keycloak **directly** — it does not go through the controllers.
+3. **In-cluster reconcile + acr=2** (`demo/acr-via-crs`) — the executable script
+   that `kubectl apply`s the sample CRs, waits for the control plane
+   (oasgen + rdc + snowplow) to build the ladder, and mints an `acr_values=gold`
+   token on client `acr-app` asserting `acr=2`. **This is the separately-gated
+   live-reconcile step** and needs a full Krateo control plane with
+   `URL_SNOWPLOW`/`URL_AUTHN` wired into the rdc deployment — it is *not* claimed
+   as proven here.
 
 Resource-specific note surfaced by validation:
 
