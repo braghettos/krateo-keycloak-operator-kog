@@ -1,0 +1,192 @@
+openapi: 3.0.3
+info:
+  title: Keycloak Admin API - User (KOG subset)
+  version: v1
+  description: Hand-curated OpenAPI 3.0 subset of the Keycloak Admin REST API for the User resource,
+    sufficient to manage a realm user (with credentials, group membership and required actions) through
+    the Krateo Operator Generator (KOG). Declares the http/bearer security scheme that the upstream
+    Keycloak OAS omits.
+servers:
+- url: '{{ .Values.keycloak.baseUrl }}'
+  description: Keycloak base URL (no trailing slash).
+security:
+- bearer: []
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: Keycloak admin access token (OAuth2 Bearer).
+  schemas:
+    UserRepresentation:
+      type: object
+      required:
+      - username
+      properties:
+        username:
+          type: string
+          description: Username. Natural key (findby).
+        enabled:
+          type: boolean
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        emailVerified:
+          type: boolean
+        requiredActions:
+          type: array
+          description: Pending required actions (e.g. CONFIGURE_TOTP, UPDATE_PASSWORD).
+            Set to [] to ensure the user can log in unattended.
+          items:
+            type: string
+        groups:
+          type: array
+          description: Group paths/names the user is a member of (applied on create/update).
+          items:
+            type: string
+        credentials:
+          type: array
+          description: >-
+            User credentials (password and/or OTP), applied inline on create/update.
+            SECURITY: credential VALUES (CredentialRepresentation.secretData /
+            credentialData) are sensitive and MUST be sourced from a Kubernetes Secret,
+            never set in plaintext on the CR — this requires field-level secret-ref support
+            in rest-dynamic-controller (braghettos/krateo-rest-dynamic-controller#31).
+          items:
+            $ref: '#/components/schemas/CredentialRepresentation'
+        id:
+          type: string
+          description: Server-generated identifier (read-only).
+          readOnly: true
+    CredentialRepresentation:
+      type: object
+      properties:
+        type:
+          type: string
+          description: e.g. password or otp.
+        userLabel:
+          type: string
+        temporary:
+          type: boolean
+        value:
+          type: string
+          description: Plaintext credential value (e.g. a password). Secret-source this.
+        secretData:
+          type: string
+          description: JSON-encoded secret material (e.g. {"value":"<raw-otp-seed>"}). Secret-source this.
+        credentialData:
+          type: string
+          description: JSON-encoded non-secret credential metadata (e.g. {"subType":"totp","digits":6,"period":30,"algorithm":"HmacSHA1"}).
+paths:
+  /admin/realms/{realm}/users:
+    post:
+      operationId: createUser
+      summary: Create User
+      tags:
+      - user
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRepresentation'
+      responses:
+        '201':
+          description: Created. Identifier returned via Location header.
+    get:
+      operationId: listUser
+      summary: List/find User
+      tags:
+      - user
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserRepresentation'
+  /admin/realms/{realm}/users/{id}:
+    get:
+      operationId: getUser
+      summary: Get User
+      tags:
+      - user
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRepresentation'
+    put:
+      operationId: updateUser
+      summary: Update User
+      tags:
+      - user
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRepresentation'
+      responses:
+        '204':
+          description: Updated.
+    delete:
+      operationId: deleteUser
+      summary: Delete User
+      tags:
+      - user
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Deleted.

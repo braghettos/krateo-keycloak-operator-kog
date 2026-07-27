@@ -48,6 +48,9 @@ restDefinitions:
   client:
     enabled: true
     kind: KeycloakClient
+  user:
+    enabled: true
+    kind: KeycloakUser
   protocolmapper:
     enabled: true
     kind: KeycloakProtocolMapper

@@ -1,0 +1,53 @@
+{{- if .Values.restDefinitions.user.enabled }}
+apiVersion: ogen.krateo.io/v1alpha1
+kind: RestDefinition
+metadata:
+  name: {{ .Release.Name }}-user
+  labels:
+    {{- include "keycloak-config-kog.labels" . | nindent 4 }}
+  {{- if .Values.verbose }}
+  annotations:
+    krateo.io/connector-verbose: "true"
+  {{- end }}
+spec:
+  oasPath: configmap://{{ .Release.Namespace }}/{{ .Release.Name }}-user/user.yaml
+  resourceGroup: {{ .Values.resourceGroup }}
+  resource:
+    kind: {{ .Values.restDefinitions.user.kind }}
+    # `username` is the user-supplied natural key; Keycloak addresses the user by a
+    # server-generated UUID. `findby` lists the collection and matches username to
+    # resolve {id} (written to status) for get/update/delete. Same pattern as client.
+    identifiers:
+      - username
+    additionalStatusFields:
+      - id
+    # `id` is server-generated: required path param on get/update/delete, but not a
+    # user-set spec field — exclude it and source it from status (populated by findby).
+    excludedSpecFields:
+      - id
+    verbsDescription:
+      - action: findby
+        method: GET
+        path: /admin/realms/{realm}/users
+      - action: create
+        method: POST
+        path: /admin/realms/{realm}/users
+      - action: get
+        method: GET
+        path: /admin/realms/{realm}/users/{id}
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
+      - action: update
+        method: PUT
+        path: /admin/realms/{realm}/users/{id}
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
+      - action: delete
+        method: DELETE
+        path: /admin/realms/{realm}/users/{id}
+        requestFieldMapping:
+          - inPath: id
+            inCustomResource: status.id
+{{- end }}
