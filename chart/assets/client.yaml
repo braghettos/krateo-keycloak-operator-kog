@@ -84,6 +84,16 @@ components:
           type: object
           additionalProperties:
             type: string
+        authenticationFlowBindingOverrides:
+          type: object
+          additionalProperties:
+            type: string
+          description: >-
+            Per-client authentication flow bindings, e.g.
+            {"browser": "<flow-id-or-alias>", "direct_grant": "<flow-id-or-alias>"}.
+            Binds this client to a custom flow at the CLIENT level (leaving the realm's
+            global flows untouched). Keycloak stores flow IDs here; the rest-dynamic-controller
+            may resolve a referenced flow ALIAS -> id (see krateo-rest-dynamic-controller#30).
         protocolMappers:
           type: array
           items:
