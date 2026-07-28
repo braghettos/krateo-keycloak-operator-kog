@@ -51,16 +51,29 @@ components:
           type: array
           description: >-
             User credentials (password and/or OTP), applied inline on create/update.
-            SECURITY: credential VALUES (CredentialRepresentation.secretData /
-            credentialData) are sensitive and MUST be sourced from a Kubernetes Secret,
-            never set in plaintext on the CR — this requires field-level secret-ref support
-            in rest-dynamic-controller (braghettos/krateo-rest-dynamic-controller#31).
+            The sensitive value of each credential is SECRET-SOURCED via rest-dynamic-controller
+            secretRef (>= RDC 0.12.0 / oasgen-provider 0.14.0): the CR carries only a
+            {name,key} reference (valueSecretRef / secretDataSecretRef) and the controller
+            substitutes the Secret's value into `value` / `secretData` at request time — the
+            plaintext never lands on the CR. See rd-user.yaml fieldMapping resolvers.
+            (The demo layout is a fixed two-credential order: [0] password, [1] OTP.)
           items:
             $ref: '#/components/schemas/CredentialRepresentation'
         id:
           type: string
           description: Server-generated identifier (read-only).
           readOnly: true
+    SecretKeySelector:
+      type: object
+      description: Reference to a key in a Secret in the Custom Resource's OWN namespace.
+      required:
+      - name
+      - key
+      properties:
+        name:
+          type: string
+        key:
+          type: string
     CredentialRepresentation:
       type: object
       properties:
@@ -71,15 +84,21 @@ components:
           type: string
         temporary:
           type: boolean
-        value:
-          type: string
-          description: Plaintext credential value (e.g. a password). Secret-source this.
-        secretData:
-          type: string
-          description: JSON-encoded secret material (e.g. {"value":"<raw-otp-seed>"}). Secret-source this.
         credentialData:
           type: string
-          description: JSON-encoded non-secret credential metadata (e.g. {"subType":"totp","digits":6,"period":30,"algorithm":"HmacSHA1"}).
+          description: JSON-encoded NON-secret credential metadata (e.g. {"subType":"totp","digits":6,"period":30,"algorithm":"HmacSHA1"}). Set inline.
+        valueSecretRef:
+          $ref: '#/components/schemas/SecretKeySelector'
+          description: Source for `value` (e.g. a password). The RDC secretRef resolver reads this Secret key and fills `value`; never set `value` directly.
+        secretDataSecretRef:
+          $ref: '#/components/schemas/SecretKeySelector'
+          description: Source for `secretData` (e.g. a raw OTP seed). The RDC secretRef resolver reads this Secret key and fills `secretData`.
+        value:
+          type: string
+          description: Resolved from valueSecretRef by the controller — do NOT set directly.
+        secretData:
+          type: string
+          description: Resolved from secretDataSecretRef by the controller — do NOT set directly.
 paths:
   /admin/realms/{realm}/users:
     post:

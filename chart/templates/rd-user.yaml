@@ -21,8 +21,8 @@ spec:
       - username
     additionalStatusFields:
       - id
-    # `id` is server-generated: required path param on get/update/delete, but not a
-    # user-set spec field — exclude it and source it from status (populated by findby).
+    # `id` is server-generated: required path param on get/update/delete, sourced from
+    # status (populated by findby); not a user-set spec field.
     excludedSpecFields:
       - id
     verbsDescription:
@@ -32,22 +32,56 @@ spec:
       - action: create
         method: POST
         path: /admin/realms/{realm}/users
+        # Credential VALUES are secret-sourced via RDC secretRef (>= RDC 0.12.0 /
+        # oasgen-provider 0.14.0): the CR carries only {name,key} refs, the controller
+        # substitutes the Secret's value into the request body — plaintext never on the CR.
+        # NB: fixed two-credential layout ([0] password, [1] OTP). The inBody array-index
+        # paths (credentials.N.*) need oasgen-provider 0.14.0 live validation.
+        fieldMapping:
+          - inBody: credentials.0.value
+            inCustomResource: spec.credentials.0.valueSecretRef
+            resolver:
+              type: secretRef
+              secretRef:
+                nameFromCustomResource: spec.credentials.0.valueSecretRef.name
+                keyFromCustomResource: spec.credentials.0.valueSecretRef.key
+          - inBody: credentials.1.secretData
+            inCustomResource: spec.credentials.1.secretDataSecretRef
+            resolver:
+              type: secretRef
+              secretRef:
+                nameFromCustomResource: spec.credentials.1.secretDataSecretRef.name
+                keyFromCustomResource: spec.credentials.1.secretDataSecretRef.key
       - action: get
         method: GET
         path: /admin/realms/{realm}/users/{id}
-        requestFieldMapping:
+        fieldMapping:
           - inPath: id
             inCustomResource: status.id
       - action: update
         method: PUT
         path: /admin/realms/{realm}/users/{id}
-        requestFieldMapping:
+        fieldMapping:
           - inPath: id
             inCustomResource: status.id
+          - inBody: credentials.0.value
+            inCustomResource: spec.credentials.0.valueSecretRef
+            resolver:
+              type: secretRef
+              secretRef:
+                nameFromCustomResource: spec.credentials.0.valueSecretRef.name
+                keyFromCustomResource: spec.credentials.0.valueSecretRef.key
+          - inBody: credentials.1.secretData
+            inCustomResource: spec.credentials.1.secretDataSecretRef
+            resolver:
+              type: secretRef
+              secretRef:
+                nameFromCustomResource: spec.credentials.1.secretDataSecretRef.name
+                keyFromCustomResource: spec.credentials.1.secretDataSecretRef.key
       - action: delete
         method: DELETE
         path: /admin/realms/{realm}/users/{id}
-        requestFieldMapping:
+        fieldMapping:
           - inPath: id
             inCustomResource: status.id
 {{- end }}
