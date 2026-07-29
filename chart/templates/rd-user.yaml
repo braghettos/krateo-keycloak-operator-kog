@@ -32,26 +32,30 @@ spec:
       - action: create
         method: POST
         path: /admin/realms/{realm}/users
-        # Credential VALUES are secret-sourced via RDC secretRef (>= RDC 0.12.0 /
-        # oasgen-provider 0.14.0): the CR carries only {name,key} refs, the controller
-        # substitutes the Secret's value into the request body — plaintext never on the CR.
-        # NB: fixed two-credential layout ([0] password, [1] OTP). The inBody array-index
-        # paths (credentials.N.*) need oasgen-provider 0.14.0 live validation.
+        # Credential VALUES are secret-sourced via RDC secretRef: the CR carries only
+        # {name,key} refs and the controller substitutes the Secret's value into the request
+        # body — plaintext never lands on the CR.
+        #
+        # Elements are addressed by CONTENT ([?type=password]), not by position. A positional
+        # path (credentials.0.*) targets whichever credential the user happened to list first,
+        # so a CR written OTP-first would silently send the password into the OTP element.
+        # Predicates make the mapping independent of the order the user writes. Requires
+        # rest-dynamic-controller >= 0.16.0.
         fieldMapping:
-          - inBody: credentials.0.value
-            inCustomResource: spec.credentials.0.valueSecretRef
+          - inBody: credentials[?type=password].value
+            inCustomResource: spec.credentials[?type=password].valueSecretRef
             resolver:
               type: secretRef
               secretRef:
-                nameFromCustomResource: spec.credentials.0.valueSecretRef.name
-                keyFromCustomResource: spec.credentials.0.valueSecretRef.key
-          - inBody: credentials.1.secretData
-            inCustomResource: spec.credentials.1.secretDataSecretRef
+                nameFromCustomResource: spec.credentials[?type=password].valueSecretRef.name
+                keyFromCustomResource: spec.credentials[?type=password].valueSecretRef.key
+          - inBody: credentials[?type=otp].secretData
+            inCustomResource: spec.credentials[?type=otp].secretDataSecretRef
             resolver:
               type: secretRef
               secretRef:
-                nameFromCustomResource: spec.credentials.1.secretDataSecretRef.name
-                keyFromCustomResource: spec.credentials.1.secretDataSecretRef.key
+                nameFromCustomResource: spec.credentials[?type=otp].secretDataSecretRef.name
+                keyFromCustomResource: spec.credentials[?type=otp].secretDataSecretRef.key
       - action: get
         method: GET
         path: /admin/realms/{realm}/users/{id}
@@ -64,20 +68,20 @@ spec:
         fieldMapping:
           - inPath: id
             inCustomResource: status.id
-          - inBody: credentials.0.value
-            inCustomResource: spec.credentials.0.valueSecretRef
+          - inBody: credentials[?type=password].value
+            inCustomResource: spec.credentials[?type=password].valueSecretRef
             resolver:
               type: secretRef
               secretRef:
-                nameFromCustomResource: spec.credentials.0.valueSecretRef.name
-                keyFromCustomResource: spec.credentials.0.valueSecretRef.key
-          - inBody: credentials.1.secretData
-            inCustomResource: spec.credentials.1.secretDataSecretRef
+                nameFromCustomResource: spec.credentials[?type=password].valueSecretRef.name
+                keyFromCustomResource: spec.credentials[?type=password].valueSecretRef.key
+          - inBody: credentials[?type=otp].secretData
+            inCustomResource: spec.credentials[?type=otp].secretDataSecretRef
             resolver:
               type: secretRef
               secretRef:
-                nameFromCustomResource: spec.credentials.1.secretDataSecretRef.name
-                keyFromCustomResource: spec.credentials.1.secretDataSecretRef.key
+                nameFromCustomResource: spec.credentials[?type=otp].secretDataSecretRef.name
+                keyFromCustomResource: spec.credentials[?type=otp].secretDataSecretRef.key
       - action: delete
         method: DELETE
         path: /admin/realms/{realm}/users/{id}

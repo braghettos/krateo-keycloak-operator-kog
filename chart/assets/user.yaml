@@ -52,11 +52,12 @@ components:
           description: >-
             User credentials (password and/or OTP), applied inline on create/update.
             The sensitive value of each credential is SECRET-SOURCED via rest-dynamic-controller
-            secretRef (>= RDC 0.12.0 / oasgen-provider 0.14.0): the CR carries only a
-            {name,key} reference (valueSecretRef / secretDataSecretRef) and the controller
-            substitutes the Secret's value into `value` / `secretData` at request time — the
-            plaintext never lands on the CR. See rd-user.yaml fieldMapping resolvers.
-            (The demo layout is a fixed two-credential order: [0] password, [1] OTP.)
+            secretRef: the CR carries only a {name,key} reference (valueSecretRef /
+            secretDataSecretRef) and the controller substitutes the Secret's value into
+            `value` / `secretData` at request time — the plaintext never lands on the CR.
+            Entries are matched by `type` (see the [?type=...] predicates in rd-user.yaml),
+            so credentials may be listed in ANY order — `type` identifies each entry, not
+            its position. Requires rest-dynamic-controller >= 0.16.0.
           items:
             $ref: '#/components/schemas/CredentialRepresentation'
         id:
