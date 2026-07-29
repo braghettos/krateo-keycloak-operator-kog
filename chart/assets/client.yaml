@@ -25,6 +25,20 @@ components:
         clientId:
           type: string
           description: Public client identifier. Natural key (findby).
+        authenticationFlowBindingOverrides:
+          type: object
+          additionalProperties:
+            type: string
+          description: >-
+            Per-client authentication flow bindings, {binding -> flow UUID} (e.g.
+            {"browser": "<uuid>"}). Binding at the CLIENT level is the only safe way to
+            scope step-up MFA to one client; the alternative — flipping the realm's global
+            browserFlow — would force step-up on every login, including keystone/portal.
+            NOTE the value is Keycloak's server-generated flow UUID, not the flowAlias KOG
+            uses elsewhere. Take it from the KeycloakAuthenticationFlow CR's status.id,
+            which that RestDefinition already projects via additionalStatusFields. Having
+            rest-dynamic-controller resolve alias -> id instead was explored and deferred:
+            see braghettos/krateo-rest-dynamic-controller#30.
         name:
           type: string
         description:
