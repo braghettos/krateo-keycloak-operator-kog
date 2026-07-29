@@ -40,7 +40,7 @@ spec:
         #
         # Credentials are addressed by CONTENT, `[?type=password]` / `[?type=otp]`, not by
         # position: the CR may list them in either order, or carry only one of the two, and
-        # each mapping still lands on the right element. Needs RDC >= 0.15.0; the unmapped
+        # each mapping still lands on the right element. Needs RDC >= 0.16.0; the unmapped
         # siblings on each credential (type/temporary/userLabel/credentialData) need
         # RDC >= 0.14.0 — before that the OTP credential silently never registered because
         # the body reached Keycloak with neither `type` nor `credentialData`.

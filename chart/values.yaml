@@ -58,8 +58,13 @@ restDefinitions:
     enabled: true
     kind: KeycloakGroup
   # Realm user, including credentials sourced from a Kubernetes Secret (password + OTP seed)
-  # rather than plaintext on the CR. Requires rest-dynamic-controller >= 0.15.0 and
+  # rather than plaintext on the CR. Requires rest-dynamic-controller >= 0.16.1 and
   # oasgen-provider >= 0.14.1 — see the notes in templates/rd-user.yaml.
+  #
+  # 0.16.0 is the true floor (it introduced the [?key=value] credential matching these
+  # mappings rely on); 0.16.1 is the floor stated here because 0.16.0 cannot delete a CR
+  # whose create failed — it wedges in Deleting and blocks the namespace with it, which on
+  # a chart whose users are still tuning their realm/spec is easy to hit.
   user:
     enabled: true
     kind: KeycloakUser
