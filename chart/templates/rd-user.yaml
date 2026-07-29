@@ -38,26 +38,27 @@ spec:
         # OTP seed ever sits on the CR. Verified end-to-end against a live Keycloak — the
         # user authenticates with a password that exists only in the Secret.
         #
-        # NB fixed two-credential layout: [0] password, [1] OTP. The array-index paths need
-        # RDC >= 0.13.0 (issue #33), and the unmapped siblings on each credential
-        # (type/temporary/userLabel/credentialData) need RDC >= 0.14.0 — before that the
-        # OTP credential silently never registered because the body reached Keycloak with
-        # neither `type` nor `credentialData`.
+        # Credentials are addressed by CONTENT, `[?type=password]` / `[?type=otp]`, not by
+        # position: the CR may list them in either order, or carry only one of the two, and
+        # each mapping still lands on the right element. Needs RDC >= 0.15.0; the unmapped
+        # siblings on each credential (type/temporary/userLabel/credentialData) need
+        # RDC >= 0.14.0 — before that the OTP credential silently never registered because
+        # the body reached Keycloak with neither `type` nor `credentialData`.
         fieldMapping:
-          - inBody: credentials.0.value
-            inCustomResource: spec.credentials.0.valueSecretRef
+          - inBody: credentials[?type=password].value
+            inCustomResource: spec.credentials[?type=password].valueSecretRef
             resolver:
               type: secretRef
               secretRef:
-                nameFromCustomResource: spec.credentials.0.valueSecretRef.name
-                keyFromCustomResource: spec.credentials.0.valueSecretRef.key
-          - inBody: credentials.1.secretData
-            inCustomResource: spec.credentials.1.secretDataSecretRef
+                nameFromCustomResource: spec.credentials[?type=password].valueSecretRef.name
+                keyFromCustomResource: spec.credentials[?type=password].valueSecretRef.key
+          - inBody: credentials[?type=otp].secretData
+            inCustomResource: spec.credentials[?type=otp].secretDataSecretRef
             resolver:
               type: secretRef
               secretRef:
-                nameFromCustomResource: spec.credentials.1.secretDataSecretRef.name
-                keyFromCustomResource: spec.credentials.1.secretDataSecretRef.key
+                nameFromCustomResource: spec.credentials[?type=otp].secretDataSecretRef.name
+                keyFromCustomResource: spec.credentials[?type=otp].secretDataSecretRef.key
       - action: get
         method: GET
         path: /admin/realms/{realm}/users/{id}
@@ -70,20 +71,20 @@ spec:
         fieldMapping:
           - inPath: id
             inCustomResource: status.id
-          - inBody: credentials.0.value
-            inCustomResource: spec.credentials.0.valueSecretRef
+          - inBody: credentials[?type=password].value
+            inCustomResource: spec.credentials[?type=password].valueSecretRef
             resolver:
               type: secretRef
               secretRef:
-                nameFromCustomResource: spec.credentials.0.valueSecretRef.name
-                keyFromCustomResource: spec.credentials.0.valueSecretRef.key
-          - inBody: credentials.1.secretData
-            inCustomResource: spec.credentials.1.secretDataSecretRef
+                nameFromCustomResource: spec.credentials[?type=password].valueSecretRef.name
+                keyFromCustomResource: spec.credentials[?type=password].valueSecretRef.key
+          - inBody: credentials[?type=otp].secretData
+            inCustomResource: spec.credentials[?type=otp].secretDataSecretRef
             resolver:
               type: secretRef
               secretRef:
-                nameFromCustomResource: spec.credentials.1.secretDataSecretRef.name
-                keyFromCustomResource: spec.credentials.1.secretDataSecretRef.key
+                nameFromCustomResource: spec.credentials[?type=otp].secretDataSecretRef.name
+                keyFromCustomResource: spec.credentials[?type=otp].secretDataSecretRef.key
       - action: delete
         method: DELETE
         path: /admin/realms/{realm}/users/{id}
