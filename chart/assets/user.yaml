@@ -1,0 +1,211 @@
+openapi: 3.0.3
+info:
+  title: Keycloak Admin API - User (KOG subset)
+  version: v1
+  description: Hand-curated OpenAPI 3.0 subset of the Keycloak Admin REST API for the User resource,
+    sufficient to manage a realm user (with credentials, group membership and required actions) through
+    the Krateo Operator Generator (KOG). Declares the http/bearer security scheme that the upstream
+    Keycloak OAS omits.
+servers:
+- url: '{{ .Values.keycloak.baseUrl }}'
+  description: Keycloak base URL (no trailing slash).
+security:
+- bearer: []
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: Keycloak admin access token (OAuth2 Bearer).
+  schemas:
+    UserRepresentation:
+      type: object
+      required:
+      - username
+      properties:
+        username:
+          type: string
+          description: Username. Natural key (findby).
+        enabled:
+          type: boolean
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        emailVerified:
+          type: boolean
+        requiredActions:
+          type: array
+          description: Pending required actions (e.g. CONFIGURE_TOTP, UPDATE_PASSWORD).
+            Set to [] to ensure the user can log in unattended.
+          items:
+            type: string
+        groups:
+          type: array
+          description: Group paths/names the user is a member of (applied on create/update).
+          items:
+            type: string
+        credentials:
+          type: array
+          description: >-
+            User credentials (password and/or OTP), applied inline on create/update.
+            The sensitive value of each credential is SECRET-SOURCED via rest-dynamic-controller
+            secretRef (>= RDC 0.12.0 / oasgen-provider 0.14.0): the CR carries only a
+            {name,key} reference (valueSecretRef / secretDataSecretRef) and the controller
+            substitutes the Secret's value into `value` / `secretData` at request time — the
+            plaintext never lands on the CR. See rd-user.yaml fieldMapping resolvers.
+            (The demo layout is a fixed two-credential order: [0] password, [1] OTP.)
+          items:
+            $ref: '#/components/schemas/CredentialRepresentation'
+        id:
+          type: string
+          description: Server-generated identifier (read-only).
+          readOnly: true
+    SecretKeySelector:
+      type: object
+      description: Reference to a key in a Secret in the Custom Resource's OWN namespace.
+      required:
+      - name
+      - key
+      properties:
+        name:
+          type: string
+        key:
+          type: string
+    CredentialRepresentation:
+      type: object
+      properties:
+        type:
+          type: string
+          description: e.g. password or otp.
+        userLabel:
+          type: string
+        temporary:
+          type: boolean
+        credentialData:
+          type: string
+          description: JSON-encoded NON-secret credential metadata (e.g. {"subType":"totp","digits":6,"period":30,"algorithm":"HmacSHA1"}). Set inline.
+        valueSecretRef:
+          $ref: '#/components/schemas/SecretKeySelector'
+          description: Source for `value` (e.g. a password). The RDC secretRef resolver reads this Secret key and fills `value`; never set `value` directly.
+        secretDataSecretRef:
+          $ref: '#/components/schemas/SecretKeySelector'
+          description: Source for `secretData` (e.g. a raw OTP seed). The RDC secretRef resolver reads this Secret key and fills `secretData`.
+        value:
+          type: string
+          description: Resolved from valueSecretRef by the controller — do NOT set directly.
+        secretData:
+          type: string
+          description: Resolved from secretDataSecretRef by the controller — do NOT set directly.
+paths:
+  /admin/realms/{realm}/users:
+    post:
+      operationId: createUser
+      summary: Create User
+      tags:
+      - user
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRepresentation'
+      responses:
+        '201':
+          description: Created. Identifier returned via Location header.
+    get:
+      operationId: listUser
+      summary: List/find User
+      tags:
+      - user
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserRepresentation'
+  /admin/realms/{realm}/users/{id}:
+    get:
+      operationId: getUser
+      summary: Get User
+      tags:
+      - user
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRepresentation'
+    put:
+      operationId: updateUser
+      summary: Update User
+      tags:
+      - user
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRepresentation'
+      responses:
+        '204':
+          description: Updated.
+    delete:
+      operationId: deleteUser
+      summary: Delete User
+      tags:
+      - user
+      parameters:
+      - name: realm
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Deleted.

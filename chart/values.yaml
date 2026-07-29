@@ -57,6 +57,12 @@ restDefinitions:
   group:
     enabled: true
     kind: KeycloakGroup
+  # Realm user, including credentials sourced from a Kubernetes Secret (password + OTP seed)
+  # rather than plaintext on the CR. Requires rest-dynamic-controller >= 0.14.0 and
+  # oasgen-provider >= 0.14.1 — see the notes in templates/rd-user.yaml.
+  user:
+    enabled: true
+    kind: KeycloakUser
   identityprovider:
     enabled: true
     kind: KeycloakIdentityProvider

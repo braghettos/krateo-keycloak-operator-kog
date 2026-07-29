@@ -1,0 +1,93 @@
+{{- if .Values.restDefinitions.user.enabled }}
+apiVersion: ogen.krateo.io/v1alpha1
+kind: RestDefinition
+metadata:
+  name: {{ .Release.Name }}-user
+  labels:
+    {{- include "keycloak-config-kog.labels" . | nindent 4 }}
+  {{- if .Values.verbose }}
+  annotations:
+    krateo.io/connector-verbose: "true"
+  {{- end }}
+spec:
+  oasPath: configmap://{{ .Release.Namespace }}/{{ .Release.Name }}-user/user.yaml
+  resourceGroup: {{ .Values.resourceGroup }}
+  resource:
+    kind: {{ .Values.restDefinitions.user.kind }}
+    # `username` is the user-supplied natural key; Keycloak addresses the user by a
+    # server-generated UUID. `findby` lists the collection and matches username to
+    # resolve {id} (written to status) for get/update/delete. Same pattern as client.
+    identifiers:
+      - username
+    additionalStatusFields:
+      - id
+    # `id` is server-generated: required path param on get/update/delete, sourced from
+    # status (populated by findby); not a user-set spec field.
+    excludedSpecFields:
+      - id
+    verbsDescription:
+      - action: findby
+        method: GET
+        path: /admin/realms/{realm}/users
+      - action: create
+        method: POST
+        path: /admin/realms/{realm}/users
+        # Credential VALUES are secret-sourced via RDC secretRef (needs RDC >= 0.14.0 /
+        # oasgen-provider >= 0.14.1): the CR carries only {name,key} refs and the controller
+        # substitutes the Secret's value into the request body, so no plaintext password or
+        # OTP seed ever sits on the CR. Verified end-to-end against a live Keycloak — the
+        # user authenticates with a password that exists only in the Secret.
+        #
+        # NB fixed two-credential layout: [0] password, [1] OTP. The array-index paths need
+        # RDC >= 0.13.0 (issue #33), and the unmapped siblings on each credential
+        # (type/temporary/userLabel/credentialData) need RDC >= 0.14.0 — before that the
+        # OTP credential silently never registered because the body reached Keycloak with
+        # neither `type` nor `credentialData`.
+        fieldMapping:
+          - inBody: credentials.0.value
+            inCustomResource: spec.credentials.0.valueSecretRef
+            resolver:
+              type: secretRef
+              secretRef:
+                nameFromCustomResource: spec.credentials.0.valueSecretRef.name
+                keyFromCustomResource: spec.credentials.0.valueSecretRef.key
+          - inBody: credentials.1.secretData
+            inCustomResource: spec.credentials.1.secretDataSecretRef
+            resolver:
+              type: secretRef
+              secretRef:
+                nameFromCustomResource: spec.credentials.1.secretDataSecretRef.name
+                keyFromCustomResource: spec.credentials.1.secretDataSecretRef.key
+      - action: get
+        method: GET
+        path: /admin/realms/{realm}/users/{id}
+        fieldMapping:
+          - inPath: id
+            inCustomResource: status.id
+      - action: update
+        method: PUT
+        path: /admin/realms/{realm}/users/{id}
+        fieldMapping:
+          - inPath: id
+            inCustomResource: status.id
+          - inBody: credentials.0.value
+            inCustomResource: spec.credentials.0.valueSecretRef
+            resolver:
+              type: secretRef
+              secretRef:
+                nameFromCustomResource: spec.credentials.0.valueSecretRef.name
+                keyFromCustomResource: spec.credentials.0.valueSecretRef.key
+          - inBody: credentials.1.secretData
+            inCustomResource: spec.credentials.1.secretDataSecretRef
+            resolver:
+              type: secretRef
+              secretRef:
+                nameFromCustomResource: spec.credentials.1.secretDataSecretRef.name
+                keyFromCustomResource: spec.credentials.1.secretDataSecretRef.key
+      - action: delete
+        method: DELETE
+        path: /admin/realms/{realm}/users/{id}
+        fieldMapping:
+          - inPath: id
+            inCustomResource: status.id
+{{- end }}
